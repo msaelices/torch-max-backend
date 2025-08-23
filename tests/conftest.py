@@ -1,6 +1,9 @@
 import pytest
 import torch
 
+from torch_max_backend import register_max_devices
+
+register_max_devices()
 
 # Register your helper module for assertion rewriting
 pytest.register_assert_rewrite("torch_max_backend.testing")
@@ -41,3 +44,13 @@ def cuda_device(gpu_available: bool):
     if not gpu_available:
         pytest.skip("CUDA not available")
     return "cuda"
+
+
+@pytest.fixture(params=["cpu", "cuda"])
+def equivalent_devices(request, gpu_available: bool):
+    if not gpu_available and request.param == "cuda":
+        pytest.skip("CUDA not available")
+    if request.param == "cpu":
+        return ("cpu", f"max_device:{len(get_accelerators()) - 1}")
+    else:
+        return ("cuda", "max_device:0")
