@@ -151,7 +151,9 @@ def aten_floordiv(x, y):
 
 # _adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor
 @map_to(aten._adaptive_avg_pool2d)
-def aten__adaptive_avg_pool2d(input, output_size):
+def aten__adaptive_avg_pool2d(
+    input: TensorValue, output_size: list[SymIntType]
+) -> TensorValue:
     # For now, we'll implement this using global average pooling for (1, 1) output
     # and regular avg pooling for other sizes
     if output_size == (1, 1) or output_size == 1:
@@ -201,7 +203,13 @@ def aten__adaptive_avg_pool2d(input, output_size):
 # _native_batch_norm_legit_no_training(Tensor input, Tensor? weight, Tensor? bias, Tensor running_mean, Tensor running_var, float momentum, float eps) -> (Tensor, Tensor, Tensor)
 @map_to(aten._native_batch_norm_legit_no_training)
 def aten__native_batch_norm_legit_no_training(
-    input, weight, bias, running_mean, running_var, momentum, eps
+    input: TensorValue,
+    weight: TensorValue | None,
+    bias: TensorValue | None,
+    running_mean: TensorValue,
+    running_var: TensorValue,
+    momentum: float,
+    eps: float,
 ) -> tuple[TensorValue, TensorValue, TensorValue]:
     """
     Implements batch normalization for inference (no training).
@@ -443,12 +451,12 @@ def flash_attention_gpu(
 
 # _softmax(Tensor self, int dim, bool half_to_float) -> Tensor
 @map_to(aten._softmax)
-def aten__softmax(input, dim, half_to_float):
+def aten__softmax(self: TensorValue, dim: int, half_to_float: bool):
     if half_to_float:
         dtype = torch.float32
     else:
         dtype = None
-    return aten_softmax(input, dim=dim, dtype=dtype)
+    return aten_softmax(self, dim=dim, dtype=dtype)
 
 
 @map_to(aten.softmax)
@@ -481,14 +489,14 @@ def aten_softmax(input, dim=-1, dtype=None):
 # _to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor
 @map_to(aten._to_copy)
 def aten__to_copy(
-    tensor,
+    tensor: TensorValue,
     *,
     dtype: torch.dtype | None = None,
-    layout=None,
+    layout: torch.layout | None = None,
     device: torch.device | None = None,
     pin_memory: bool | None = None,
     non_blocking: bool = False,
-    memory_format=None,
+    memory_format: torch.memory_format | None = None,
 ):
     result = tensor
     if device is not None:
@@ -500,7 +508,7 @@ def aten__to_copy(
 
 # abs(Tensor self) -> Tensor
 @map_to(aten.abs)
-def aten_abs(x):
+def aten_abs(x: TensorValue):
     return max_ops.abs(x)
 
 
@@ -512,7 +520,7 @@ def aten_abs(x):
 # add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
 # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 @map_to(aten.add)
-def aten_add(input: TensorValue, other, alpha: Scalar = 1):
+def aten_add(input: TensorValue, other: TensorValue | Scalar, alpha: Scalar = 1):
     input, other = type_promotion(input, other)
 
     if alpha != 1:
@@ -524,7 +532,14 @@ def aten_add(input: TensorValue, other, alpha: Scalar = 1):
 
 # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 @map_to(aten.addmm)
-def aten_addmm(input, mat1, mat2, *, beta=1.0, alpha=1.0):
+def aten_addmm(
+    input: TensorValue,
+    mat1: TensorValue,
+    mat2: TensorValue,
+    *,
+    beta: Scalar = 1.0,
+    alpha: Scalar = 1.0,
+) -> TensorValue:
     # addmm computes: beta * input + alpha * mat1 @ mat2
     matmul_result = operator.matmul(mat1, mat2)
 
@@ -542,13 +557,15 @@ def aten_addmm(input, mat1, mat2, *, beta=1.0, alpha=1.0):
 
 # alias(Tensor(a) self) -> Tensor(a)
 @map_to(aten.alias)
-def aten_alias(input):
+def aten_alias(input: TensorValue) -> TensorValue:
     return input
 
 
 # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 @map_to(aten.amax)
-def aten_amax(input, dim=None, keepdim=False, *, out=None):
+def aten_amax(
+    input: TensorValue, dim: list[int] | int | None = [], keepdim: bool = False
+) -> TensorValue:
     # If only input is provided, we find the maximum along the specified dimension
     if not dim:
         dim = [i for i in range(len(input.shape))]
@@ -568,7 +585,9 @@ def aten_amax(input, dim=None, keepdim=False, *, out=None):
 
 # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 @map_to(aten.amin)
-def aten_amin(input, dim=None, keepdim=False, *, out=None):
+def aten_amin(
+    input: TensorValue, dim: list[int] | int | None = [], keepdim: bool = False
+) -> TensorValue:
     # If only input is provided, we find the minimum along the specified dimension
     if not dim:
         dim = [i for i in range(len(input.shape))]
@@ -590,7 +609,9 @@ def aten_amin(input, dim=None, keepdim=False, *, out=None):
 # any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor
 # any.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor
 @map_to(aten.any)
-def aten_any(input, dim=None, keepdim=False, *, out=None):
+def aten_any(
+    input: TensorValue, dim: int | list[int] | None = None, keepdim: bool = False
+) -> TensorValue:
     """
     Equivalent to torch.any.
     Tests if any elements in the input are True (non-zero).
@@ -629,13 +650,11 @@ def aten_arange(
     end: Scalar | None = None,
     step: Scalar = 1,
     *,
-    out=None,
-    dtype=None,
-    layout=torch.strided,
-    device=None,
-    requires_grad=False,
-    pin_memory=False,
-):
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    pin_memory: bool | None = None,
+) -> TensorValue:
     if isinstance(start, float):
         raise ValueError("We don't support float start values for torch.arange")
     if isinstance(step, float):
@@ -678,7 +697,7 @@ def aten_arange(
 # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 @map_to(aten.argmax)
 def aten_argmax(
-    input: TensorValue, dim: int | None = None, keepdim: bool = False, *, out=None
+    input: TensorValue, dim: int | None = None, keepdim: bool = False
 ) -> TensorValue:
     # If dim is None, return argmax of flattened tensor
     if dim is None:
@@ -737,21 +756,23 @@ def aten_argmin(
 
 # atanh(Tensor self) -> Tensor
 @map_to(aten.atanh)
-def aten_atanh(x):
+def aten_atanh(x: TensorValue) -> TensorValue:
     return max_ops.atanh(x)
 
 
 # avg_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, bool ceil_mode=False, bool count_include_pad=True) -> Tensor
+
+
 # avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor
 @map_to(aten.avg_pool2d)
 def aten_avg_pool2d(
-    input,
-    kernel_size,
-    stride=None,
-    padding=0,
-    ceil_mode=False,
-    count_include_pad=True,
-    divisor_override=None,
+    input: TensorValue,
+    kernel_size: list[int],
+    stride: list[int] | None = None,
+    padding: list[int] = [0, 0],
+    ceil_mode: bool = False,
+    count_include_pad: bool = True,
+    divisor_override: int | None = None,
 ):
     """
     Applies a 2D average pooling over an input signal composed of several input planes.
@@ -822,7 +843,7 @@ def aten_avg_pool2d(
 
 # bmm(Tensor self, Tensor mat2) -> Tensor
 @map_to(aten.bmm)
-def aten_bmm(input, mat2):
+def aten_bmm(input: TensorValue, mat2: TensorValue) -> TensorValue:
     """
     Batch matrix multiplication equivalent to torch.bmm.
 
@@ -839,7 +860,7 @@ def aten_bmm(input, mat2):
 
 # cat(Tensor[] tensors, int dim=0) -> Tensor
 @map_to(aten.cat)
-def aten_cat(tensors: list, dim=0):
+def aten_cat(tensors: list[TensorValue], dim: int = 0) -> TensorValue:
     return max_ops.concat(tensors, axis=dim)
 
 
@@ -849,7 +870,11 @@ def aten_cat(tensors: list, dim=0):
 # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 # clamp.Tensor(Tensor self, Tensor? min=None, Tensor? max=None) -> Tensor
 @map_to(aten.clamp)
-def aten_clamp(input, min=None, max=None, *, out=None):
+def aten_clamp(
+    input: TensorValue,
+    min: TensorValue | Scalar | None = None,
+    max: TensorValue | Scalar | None = None,
+) -> TensorValue:
     """
     Implements torch.clamp by clamping all elements in input to the range [min, max].
     Uses max_ops.max and max_ops.min to implement clamp as:
@@ -870,7 +895,9 @@ def aten_clamp(input, min=None, max=None, *, out=None):
 
 # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 @map_to(aten.clone)
-def aten_clone(input, *, memory_format=None):
+def aten_clone(
+    input: TensorValue, *, memory_format: torch.memory_format | None = None
+) -> TensorValue:
     return input
 
 
@@ -881,8 +908,16 @@ def aten_clone(input, *, memory_format=None):
 # convolution(Tensor input, Tensor weight, Tensor? bias, SymInt[] stride, SymInt[] padding, SymInt[] dilation, bool transposed, SymInt[] output_padding, SymInt groups) -> Tensor
 @map_to(aten.convolution)
 def aten_convolution(
-    input, weight, bias, stride, padding, dilation, transposed, output_padding, groups
-):
+    input: TensorValue,
+    weight: TensorValue,
+    bias: TensorValue | None,
+    stride: list[SymIntType],
+    padding: list[SymIntType],
+    dilation: list[SymIntType],
+    transposed: bool,
+    output_padding: list[SymIntType],
+    groups: SymIntType,
+) -> TensorValue:
     # For now, we only support the 2D case that maps to F.conv2d
     if transposed:
         raise NotImplementedError("Transposed convolution is not supported yet")
@@ -940,14 +975,18 @@ def aten_convolution(
 
 # cos(Tensor self) -> Tensor
 @map_to(aten.cos)
-def aten_cos(x):
+def aten_cos(x: TensorValue) -> TensorValue:
     return max_ops.cos(x)
 
 
 # cosh(Tensor self) -> Tensor
+
+
 # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 @map_to(aten.cumsum)
-def aten_cumsum(input, dim, *, dtype=None):
+def aten_cumsum(
+    input: TensorValue, dim: int, *, dtype: torch.dtype | None = None
+) -> TensorValue:
     """
     Returns the cumulative sum of elements of input in the dimension dim.
 
@@ -972,7 +1011,9 @@ def aten_cumsum(input, dim, *, dtype=None):
 # div.Tensor(Tensor self, Tensor other) -> Tensor
 # div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
 @map_to(aten.div)
-def aten_div(input, other, *, rounding_mode=None):
+def aten_div(
+    input: TensorValue, other: TensorValue | Scalar, *, rounding_mode: str | None = None
+) -> TensorValue:
     # Handle torch.div with different rounding modes
     if rounding_mode is None:
         return operator.truediv(input, other)
@@ -992,21 +1033,18 @@ def aten_div(input, other, *, rounding_mode=None):
 # embedding(Tensor weight, Tensor indices, SymInt padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 @map_to(aten.embedding)
 def aten_embedding(
-    input,
-    weight,
-    padding_idx=None,
-    max_norm=None,
-    norm_type=2.0,
-    scale_grad_by_freq=False,
-    sparse=False,
+    input: TensorValue,
+    weight: TensorValue,
+    padding_idx: SymIntType = -1,
+    scale_grad_by_freq: bool = False,
+    sparse: bool = False,
 ):
     # For some reason with aten, input and weight are inverted.
     return torch_embedding_equivalent(
         weight,
         input,
         padding_idx=padding_idx,
-        max_norm=max_norm,
-        norm_type=norm_type,
+        max_norm=None,
         scale_grad_by_freq=scale_grad_by_freq,
         sparse=sparse,
     )
@@ -1017,7 +1055,6 @@ def torch_embedding_equivalent(
     weight,
     padding_idx=None,
     max_norm=None,
-    norm_type=2.0,
     scale_grad_by_freq=False,
     sparse=False,
 ):
@@ -1057,7 +1094,7 @@ def torch_embedding_equivalent(
 # eq.Scalar(Tensor self, Scalar other) -> Tensor
 # eq.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.eq)
-def aten_eq(x, y):
+def aten_eq(x: TensorValue, y: TensorValue | Scalar) -> TensorValue:
     return operator.eq(x, y)
 
 
@@ -1066,7 +1103,7 @@ def aten_eq(x, y):
 
 # exp(Tensor self) -> Tensor
 @map_to(aten.exp)
-def aten_exp(input):
+def aten_exp(input: TensorValue) -> TensorValue:
     return max_ops.exp(input)
 
 
@@ -1106,9 +1143,11 @@ def aten_expand(
 # expm1(Tensor self) -> Tensor
 # fill.Scalar(Tensor self, Scalar value) -> Tensor
 # flip(Tensor self, int[] dims) -> Tensor
+
+
 # floor(Tensor self) -> Tensor
 @map_to(aten.floor)
-def aten_floor(input):
+def aten_floor(input: TensorValue) -> TensorValue:
     """
     Returns a new tensor with the floor of the elements of input,
     the largest integer less than or equal to each element.
@@ -1123,15 +1162,13 @@ def aten_floor(input):
 # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 @map_to(aten.full)
 def aten_full(
-    size,
-    fill_value,
+    size: list[SymIntType],
+    fill_value: Scalar,
     *,
-    out=None,
-    dtype=None,
-    layout=torch.strided,
-    device=None,
-    requires_grad=False,
-    pin_memory=False,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    pin_memory: bool | None = None,
 ):
     if dtype is None:
         dtype = torch.float32
@@ -1151,16 +1188,15 @@ def aten_full(
 # full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 @map_to(aten.full_like)
 def aten_full_like(
-    input,
-    fill_value,
+    input: TensorValue,
+    fill_value: Scalar,
     *,
-    dtype=None,
-    layout=torch.strided,
-    device=None,
-    requires_grad=False,
-    pin_memory=False,
-    memory_format=None,
-):
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    pin_memory: bool | None = None,
+    memory_format: torch.memory_format | None = None,
+) -> TensorValue:
     # If dtype is not specified, use the input tensor's dtype
     if dtype is None:
         target_dtype = input.dtype
@@ -1191,7 +1227,7 @@ def aten_full_like(
 # ge.Scalar(Tensor self, Scalar other) -> Tensor
 # ge.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.ge)
-def aten_ge(input, other):
+def aten_ge(input: TensorValue, other: TensorValue | Scalar) -> TensorValue:
     return input >= other
 
 
