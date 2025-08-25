@@ -1577,14 +1577,20 @@ def aten_max_pool2d_with_indices(
 
 # maximum(Tensor self, Tensor other) -> Tensor
 @map_to(aten.maximum)
-def aten_maximum(x, y):
+def aten_maximum(x: TensorValue, y: TensorValue) -> TensorValue:
     return max_ops.max(x, y)
 
 
 # mean(Tensor self, *, ScalarType? dtype=None) -> Tensor
 # mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor
 @map_to(aten.mean)
-def aten_mean(input, dim=None, keepdim=False, *, dtype=None):
+def aten_mean(
+    input: TensorValue,
+    dim=None,
+    keepdim: bool = False,
+    *,
+    dtype: torch.dtype | None = None,
+) -> TensorValue:
     if dtype is not None:
         max_dtype = DType.from_torch(dtype)
         input = max_ops.cast(input, dtype=max_dtype)
@@ -1623,6 +1629,7 @@ def aten_min(*args, **kwargs):
     2. torch.min(input, dim, keepdim=False) - (values, indices) tuple along dimension
     3. torch.min(input, other) - element-wise minimum
     """
+    # TODO: Fix signature to remove *args and **kwargs
     if len(args) == 1:
         # Variant 1: torch.min(input) - single minimum value
         input_tensor = args[0]
@@ -1669,20 +1676,20 @@ def aten_min(*args, **kwargs):
 
 # minimum(Tensor self, Tensor other) -> Tensor
 @map_to(aten.minimum)
-def aten_minimum(x, y):
+def aten_minimum(x: TensorValue, y: TensorValue) -> TensorValue:
     return max_ops.min(x, y)
 
 
 # mm(Tensor self, Tensor mat2) -> Tensor
 @map_to(aten.mm)
-def aten_mm(x, y):
+def aten_mm(x: TensorValue, y: TensorValue) -> TensorValue:
     return operator.matmul(x, y)
 
 
 # mul.Scalar(Tensor self, Scalar other) -> Tensor
 # mul.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.mul)
-def aten_mul(input, other):
+def aten_mul(input: TensorValue, other: TensorValue | Scalar) -> TensorValue:
     input, other = type_promotion(input, other)
     return input * other
 
@@ -1693,7 +1700,14 @@ def aten_mul(input, other):
 # native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)
 @map_to(aten.native_group_norm)
 def aten_native_group_norm(
-    input: TensorValue, weight, bias, N, C, HxW, group, eps
+    input: TensorValue,
+    weight: TensorValue | None,
+    bias: TensorValue | None,
+    N: SymIntType,
+    C: SymIntType,
+    HxW: SymIntType,
+    group: int,
+    eps: float,
 ) -> tuple[TensorValue, NotImplementedError, NotImplementedError]:
     """
     This is the low-level operation that F.group_norm gets compiled to.
@@ -1781,7 +1795,11 @@ def torch_group_norm_equivalent(input, num_groups, weight=None, bias=None, eps=1
 # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 @map_to(aten.native_layer_norm)
 def aten_native_layer_norm(
-    input, normalized_shape, weight, bias, eps
+    input: TensorValue,
+    normalized_shape: list[SymIntType],
+    weight: TensorValue | None,
+    bias: TensorValue | None,
+    eps: float,
 ) -> tuple[TensorValue, NotImplementedError, NotImplementedError]:
     # expects a tuple or list for some reason
     # surely for the backward pass,
