@@ -19,7 +19,7 @@ import numpy as np
 import math
 from torch._decomp import core_aten_decompositions
 from torch._ops import OpOverloadPacket, OpOverload
-
+from typing import Literal
 from torch_max_backend.flags import verbose_enabled
 from max.graph import TensorType
 from . import torch_max_device_module
@@ -1233,7 +1233,9 @@ def aten_ge(input: TensorValue, other: TensorValue | Scalar) -> TensorValue:
 
 # gelu(Tensor self, *, str approximate='none') -> Tensor
 @map_to(aten.gelu)
-def aten_gelu(input, approximate="none"):
+def aten_gelu(
+    input: TensorValue, approximate: Literal["tanh", "none"] = "none"
+) -> TensorValue:
     if approximate == "tanh":
         # Approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
         coeff = math.sqrt(2.0 / math.pi)
@@ -1253,7 +1255,7 @@ def aten_gelu(input, approximate="none"):
 # gt.Scalar(Tensor self, Scalar other) -> Tensor
 # gt.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.gt)
-def aten_gt(x, y):
+def aten_gt(x: TensorValue, y: Scalar | TensorValue) -> TensorValue:
     return operator.gt(x, y)
 
 
@@ -1262,7 +1264,7 @@ def aten_gt(x, y):
 
 # index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
 @map_to(aten.index)
-def aten_index(input, indices=None):
+def aten_index(input: TensorValue, indices: list[TensorValue | None]) -> TensorValue:
     if not indices:
         raise NotImplementedError("We don't yet support aten.index without indices")
 
@@ -1359,9 +1361,11 @@ def broadcast_shape(shapes):
 # index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
 # index_select(Tensor self, int dim, Tensor index) -> Tensor
 # isinf(Tensor self) -> Tensor
+
+
 # isnan(Tensor self) -> Tensor
 @map_to(aten.isnan)
-def aten_isnan(input):
+def aten_isnan(input: TensorValue) -> TensorValue:
     """
     Returns a new tensor with boolean elements representing if each element is NaN or not.
     """
@@ -1371,14 +1375,14 @@ def aten_isnan(input):
 # le.Scalar(Tensor self, Scalar other) -> Tensor
 # le.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.le)
-def aten_le(input, other):
+def aten_le(input: TensorValue, other: Scalar | TensorValue) -> TensorValue:
     return input <= other
 
 
 # leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor
 # log(Tensor self) -> Tensor
 @map_to(aten.log)
-def aten_log(input):
+def aten_log(input: TensorValue) -> TensorValue:
     """
     Returns a new tensor with the natural logarithm of the elements of input.
     """
@@ -1386,9 +1390,11 @@ def aten_log(input):
 
 
 # log10(Tensor self) -> Tensor
+
+
 # log1p(Tensor self) -> Tensor
 @map_to(aten.log1p)
-def aten_log1p(input):
+def aten_log1p(input: TensorValue) -> TensorValue:
     """
     Returns a new tensor with the natural logarithm of (1 + input).
     This function is more numerically stable than log(1 + input) for small values of input.
@@ -1401,7 +1407,7 @@ def aten_log1p(input):
 
 # logical_and(Tensor self, Tensor other) -> Tensor
 @map_to(aten.logical_and)
-def aten_logical_and(input, other):
+def aten_logical_and(input: TensorValue, other: TensorValue) -> TensorValue:
     """
     Computes element-wise logical AND of two tensors.
     Both inputs are converted to boolean first if they aren't already.
@@ -1423,7 +1429,7 @@ def aten_logical_and(input, other):
 
 # logical_not(Tensor self) -> Tensor
 @map_to(aten.logical_not)
-def aten_logical_not(input):
+def aten_logical_not(input: TensorValue) -> TensorValue:
     """
     PyTorch's logical_not treats any non-zero value as True and returns the logical negation.
     MAX's logical_not requires boolean input, so we need to convert first.
@@ -1435,9 +1441,11 @@ def aten_logical_not(input):
 
 
 # logical_or(Tensor self, Tensor other) -> Tensor
+
+
 # logical_xor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.logical_xor)
-def aten_logical_xor(input, other):
+def aten_logical_xor(input: TensorValue, other: TensorValue) -> TensorValue:
     """
     Computes element-wise logical XOR of two tensors.
     Both inputs are converted to boolean first if they aren't already.
@@ -1460,11 +1468,13 @@ def aten_logical_xor(input, other):
 # lt.Scalar(Tensor self, Scalar other) -> Tensor
 # lt.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.lt)
-def aten_lt(input, other):
+def aten_lt(input: TensorValue, other: Scalar | TensorValue) -> TensorValue:
     return input < other
 
 
 # masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor
+
+
 # max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)
 @map_to(aten.max)
 def aten_max(*args, **kwargs):
@@ -1474,6 +1484,7 @@ def aten_max(*args, **kwargs):
     2. torch.max(input, dim, keepdim=False) - (values, indices) tuple along dimension
     3. torch.max(input, other) - element-wise maximum
     """
+    # TODO: clean this up, remove *args and **kwargs
     if len(args) == 1:
         # Variant 1: torch.max(input) - single maximum value
         input_tensor = args[0]
