@@ -2064,7 +2064,11 @@ def aten_sub(
 # sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor
 @map_to(aten.sum)
 def aten_sum(
-    input: TensorValue, dim=None, keepdim: bool = False, *, dtype=None
+    input: TensorValue,
+    dim: list[int] | int | None = None,
+    keepdim: bool = False,
+    *,
+    dtype: torch.dtype | None = None,
 ) -> TensorValue:
     if dtype is not None:
         max_dtype = DType.from_torch(dtype)
@@ -2104,7 +2108,7 @@ def aten_sum(
 
 # unsqueeze(Tensor(a) self, int dim) -> Tensor(a)
 @map_to(aten.unsqueeze)
-def aten_unsqueeze(tensor, dim):
+def aten_unsqueeze(tensor: TensorValue, dim: int) -> TensorValue:
     return max_ops.unsqueeze(tensor, axis=dim)
 
 
@@ -2116,7 +2120,7 @@ def aten_unsqueeze(tensor, dim):
 
 # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 @map_to(aten.view)
-def aten_view(tensor, *shape):
+def aten_view(tensor: TensorValue, *shape) -> TensorValue:
     if len(shape) == 1 and isinstance(shape[0], tuple | list):
         target_shape = list(shape[0])
     else:
@@ -2126,22 +2130,21 @@ def aten_view(tensor, *shape):
 
 # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
 @map_to(aten.where)
-def aten_where(input, condition, other):
+def aten_where(
+    input: TensorValue, condition: TensorValue, other: TensorValue
+) -> TensorValue:
     return max_ops.where(input, condition, other)
 
 
-# Add remaining functions from mappings.py that need to be available
-
-
+# stack(Tensor[] tensors, int dim=0) -> Tensor
 @map_to(aten.stack)
-def aten_stack(tensors: list, dim=0):
+def aten_stack(tensors: list[TensorValue], dim: int = 0) -> TensorValue:
     return max_ops.stack(tensors, axis=dim)
 
 
-# tril.out(Tensor self, int diagonal=0, *, Tensor(a!) out) -> Tensor(a!)
 # tril(Tensor self, int diagonal=0) -> Tensor
 @map_to(aten.tril)
-def aten_tril(input: TensorValue, diagonal: int = 0, *, out=None) -> TensorValue:
+def aten_tril(input: TensorValue, diagonal: int = 0) -> TensorValue:
     # Max doesn't have tril built-in, so we get around this. It should be pretty
     # easy to implement on cpu and gpu though.
     shape = input.shape
