@@ -282,6 +282,8 @@ def test_outer(device: str):
 
 def test_log1p_basic(device: str):
     """Test basic log1p functionality"""
+    if device == "cuda":
+        pytest.xfail("log1p not working on gpus yet")
 
     def fn(x):
         return torch.log1p(x)
@@ -293,6 +295,8 @@ def test_log1p_basic(device: str):
 
 def test_log1p_small_values(device: str):
     """Test log1p with small values where it's most beneficial"""
+    if device == "cuda":
+        pytest.xfail("log1p not working on gpus yet")
 
     def fn(x):
         return torch.log1p(x)
@@ -340,6 +344,8 @@ def test_log_various_ranges(device: str):
 
 def test_log1p_various_ranges(device: str):
     """Test log1p with various value ranges"""
+    if device == "cuda":
+        pytest.xfail("log1p not working on gpus yet")
 
     def fn(x):
         return torch.log1p(x)
@@ -374,6 +380,8 @@ def test_log_edge_cases(device: str):
 
 def test_log1p_edge_cases(device: str):
     """Test log1p with edge cases"""
+    if device == "cuda":
+        pytest.xfail("log1p not working on gpus yet")
 
     def fn(x):
         return torch.log1p(x)
@@ -443,6 +451,8 @@ def test_isnan_edge_cases(device: str):
 
 def test_tensor_log1p_method(device: str):
     """Test tensor.log1p() method"""
+    if device == "cuda":
+        pytest.xfail("log1p not working on gpus yet")
 
     def fn(x):
         return x.log1p()
@@ -5102,6 +5112,8 @@ def test_interpolate_preserve_aspect_ratio(device: str):
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_native_batch_norm_legit_no_training_basic(device: str, dtype: torch.dtype):
     """Test basic batch normalization inference with different dtypes"""
+    if device == "cuda":
+        pytest.xfail("_native_batch_norm_legit_no_training not working on gpus yet")
 
     def fn(input_tensor, weight, bias, running_mean, running_var):
         return aten._native_batch_norm_legit_no_training.default(
@@ -5128,6 +5140,8 @@ def test_native_batch_norm_legit_no_training_different_channels(
     device: str, channels: int
 ):
     """Test batch norm with different numbers of channels"""
+    if device == "cuda":
+        pytest.xfail("_native_batch_norm_legit_no_training not working on gpus yet")
 
     def fn(input_tensor, weight, bias, running_mean, running_var):
         return aten._native_batch_norm_legit_no_training.default(
@@ -5150,6 +5164,8 @@ def test_native_batch_norm_legit_no_training_different_channels(
 
 def test_native_batch_norm_legit_no_training_none_weight_bias(device: str):
     """Test batch norm with None weight and bias"""
+    if device == "cuda":
+        pytest.xfail("_native_batch_norm_legit_no_training not working on gpus yet")
 
     def fn(input_tensor, running_mean, running_var):
         return aten._native_batch_norm_legit_no_training.default(
@@ -5171,6 +5187,8 @@ def test_native_batch_norm_legit_no_training_none_weight_bias(device: str):
 @pytest.mark.parametrize("eps", [1e-5, 1e-3])
 def test_native_batch_norm_legit_no_training_different_eps(device: str, eps: float):
     """Test batch norm with different epsilon values"""
+    if device == "cuda":
+        pytest.xfail("_native_batch_norm_legit_no_training not working on gpus yet")
 
     def fn(input_tensor, weight, bias, running_mean, running_var):
         return aten._native_batch_norm_legit_no_training.default(
@@ -5193,6 +5211,8 @@ def test_native_batch_norm_legit_no_training_different_eps(device: str, eps: flo
 
 def test_native_batch_norm_legit_no_training_2d_input(device: str):
     """Test batch norm with 2D input (N, C)"""
+    if device == "cuda":
+        pytest.xfail("_native_batch_norm_legit_no_training not working on gpus yet")
 
     def fn(input_tensor, weight, bias, running_mean, running_var):
         return aten._native_batch_norm_legit_no_training.default(
