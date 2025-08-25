@@ -1843,19 +1843,19 @@ def aten_native_layer_norm(
 # ne.Scalar(Tensor self, Scalar other) -> Tensor
 # ne.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.ne)
-def aten_ne(x, y):
+def aten_ne(x: TensorValue, y: TensorValue | Scalar) -> TensorValue:
     return operator.ne(x, y)
 
 
 # neg(Tensor self) -> Tensor
 @map_to(aten.neg)
-def aten_neg(x):
+def aten_neg(x: TensorValue) -> TensorValue:
     return operator.neg(x)
 
 
 # nonzero(Tensor self) -> Tensor
 @map_to(aten.nonzero)
-def aten_nonzero(input):
+def aten_nonzero(input: TensorValue) -> TensorValue:
     """
     Returns the indices of the elements that are non-zero.
     Returns a 2D tensor where each row is the indices of a non-zero element.
@@ -1865,7 +1865,7 @@ def aten_nonzero(input):
 
 # permute(Tensor(a) self, int[] dims) -> Tensor(a)
 @map_to(aten.permute)
-def aten_permute(x, dims):
+def aten_permute(x: TensorValue, dims: list[int]) -> TensorValue:
     return max_ops.permute(x, dims)
 
 
@@ -1873,7 +1873,7 @@ def aten_permute(x, dims):
 # pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor
 # pow.Tensor_Tensor(Tensor self, Tensor exponent) -> Tensor
 @map_to(aten.pow)
-def aten_pow(x, y):
+def aten_pow(x: Scalar | TensorValue, y: Scalar | TensorValue) -> TensorValue:
     return operator.pow(x, y)
 
 
@@ -1890,7 +1890,7 @@ def aten_pow(x, y):
 
 # relu(Tensor self) -> Tensor
 @map_to(aten.relu)
-def aten_relu(tensor, inplace: bool = False):
+def aten_relu(tensor: TensorValue) -> TensorValue:
     # inplace has no meaning in max since it's graph-based
     return max_ops.relu(tensor)
 
@@ -1898,13 +1898,13 @@ def aten_relu(tensor, inplace: bool = False):
 # remainder.Scalar(Tensor self, Scalar other) -> Tensor
 # remainder.Tensor(Tensor self, Tensor other) -> Tensor
 @map_to(aten.remainder)
-def aten_remainder(x, y):
+def aten_remainder(x: TensorValue, y: TensorValue | Scalar) -> TensorValue:
     return operator.mod(x, y)
 
 
 # repeat(Tensor self, SymInt[] repeats) -> Tensor
 @map_to(aten.repeat)
-def aten_repeat(input: TensorValue, repeats: list[int]) -> TensorValue:
+def aten_repeat(input: TensorValue, repeats: list[SymIntType]) -> TensorValue:
     """
     Equivalent to torch.repeat - repeats the tensor along each dimension.
     Each dimension is repeated the number of times specified in repeats.
@@ -1920,7 +1920,7 @@ def aten_repeat(input: TensorValue, repeats: list[int]) -> TensorValue:
 
 # rsqrt(Tensor self) -> Tensor
 @map_to(aten.rsqrt)
-def aten_rsqrt(x):
+def aten_rsqrt(x: TensorValue) -> TensorValue:
     return max_ops.rsqrt(x)
 
 
@@ -1931,7 +1931,7 @@ def aten_scalar_tensor(
     dtype: torch.dtype = None,
     layout: torch.layout = None,
     device: torch.device = None,
-):
+) -> TensorValue:
     if dtype is None:
         dtype = torch.float32
     if device is None:
@@ -1950,7 +1950,7 @@ def aten_scalar_tensor(
 
 # select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)
 @map_to(aten.select)
-def aten_select(input: TensorValue, dim: int, index: int):
+def aten_select(input: TensorValue, dim: int, index: SymIntType) -> TensorValue:
     """
     Equivalent to torch.select - selects a slice of the tensor along the given dimension at the given index.
     """
@@ -1965,13 +1965,13 @@ def aten_select(input: TensorValue, dim: int, index: int):
 
 # sigmoid(Tensor self) -> Tensor
 @map_to(aten.sigmoid)
-def aten_sigmoid(input):
+def aten_sigmoid(input: TensorValue) -> TensorValue:
     return max_ops.sigmoid(input)
 
 
 # sign(Tensor self) -> Tensor
 @map_to(aten.sign)
-def aten_sign(x):
+def aten_sign(x: TensorValue) -> TensorValue:
     # sign(x) = (x > 0) + (x < 0) * (-1)
     # This returns 1.0 for positive, -1.0 for negative, 0.0 for zero
     positive = max_ops.cast(x > 0, dtype=x.dtype)
@@ -1981,13 +1981,13 @@ def aten_sign(x):
 
 # sin(Tensor self) -> Tensor
 @map_to(aten.sin)
-def aten_sin(x):
+def aten_sin(x: TensorValue) -> TensorValue:
     return max_ops.sin(x)
 
 
 # tanh(Tensor self) -> Tensor
 @map_to(aten.tanh)
-def aten_tanh(x):
+def aten_tanh(x: TensorValue) -> TensorValue:
     return max_ops.tanh(x)
 
 
@@ -2016,7 +2016,9 @@ def aten_slice(
 
 # split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]
 @map_to(aten.split_with_sizes)
-def aten_split_with_sizes(input, split_sizes, dim=0):
+def aten_split_with_sizes(
+    input: TensorValue, split_sizes: list[SymIntType], dim: int = 0
+) -> list[TensorValue]:
     result = []
     start = 0
     for size in split_sizes:
@@ -2028,14 +2030,14 @@ def aten_split_with_sizes(input, split_sizes, dim=0):
 
 # sqrt(Tensor self) -> Tensor
 @map_to(aten.sqrt)
-def aten_sqrt(x):
+def aten_sqrt(x: TensorValue) -> TensorValue:
     return max_ops.sqrt(x)
 
 
 # squeeze.dim(Tensor(a) self, int dim) -> Tensor(a)
 # squeeze.dims(Tensor(a) self, int[] dim) -> Tensor(a)
 @map_to(aten.squeeze)
-def aten_squeeze(input, dim):
+def aten_squeeze(input: TensorValue, dim: int | list[int]) -> TensorValue:
     if isinstance(dim, int):
         dim = [dim]
     result = input
@@ -2047,7 +2049,9 @@ def aten_squeeze(input, dim):
 # sub.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
 # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 @map_to(aten.sub)
-def aten_sub(input, other, *, alpha=1):
+def aten_sub(
+    input: TensorValue, other: TensorValue | Scalar, alpha: Scalar = 1
+) -> TensorValue:
     input, other = type_promotion(input, other)
 
     if alpha != 1:
@@ -2059,7 +2063,9 @@ def aten_sub(input, other, *, alpha=1):
 
 # sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor
 @map_to(aten.sum)
-def aten_sum(input, dim=None, keepdim=False, *, dtype=None):
+def aten_sum(
+    input: TensorValue, dim=None, keepdim: bool = False, *, dtype=None
+) -> TensorValue:
     if dtype is not None:
         max_dtype = DType.from_torch(dtype)
         input = max_ops.cast(input, dtype=max_dtype)
