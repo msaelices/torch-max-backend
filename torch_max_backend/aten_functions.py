@@ -2162,10 +2162,9 @@ def aten_tril(input: TensorValue, diagonal: int = 0) -> TensorValue:
     return result
 
 
-# triu.out(Tensor self, int diagonal=0, *, Tensor(a!) out) -> Tensor(a!)
 # triu(Tensor self, int diagonal=0) -> Tensor
 @map_to(aten.triu)
-def aten_triu(input: TensorValue, diagonal: int = 0, *, out=None) -> TensorValue:
+def aten_triu(input: TensorValue, diagonal: int = 0) -> TensorValue:
     # For dynamic shapes, we can't pre-compute a mask. Instead we use a different approach.
     # For now, let's check if we can handle static dims, otherwise return input unchanged
     # TODO: Implement dynamic triu using coordinate-based masking
@@ -2235,10 +2234,13 @@ def aten_unbind(input: TensorValue, dim: int = 0) -> list[TensorValue]:
     return result
 
 
+# repeat_interleave.Tensor(Tensor repeats, *, SymInt? output_size=None) -> Tensor
+# repeat_interleave.self_Tensor(Tensor self, Tensor repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor
+# repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor
 @map_to(aten.repeat_interleave)
 def aten_repeat_interleave(
-    input: max_ops.TensorType, repeats: int, dim: int = 0
-) -> max_ops.TensorType:
+    input: TensorValue, repeats: int, dim: int = 0
+) -> TensorValue:
     """
     Equivalent to torch.repeat_interleave - repeats elements of a tensor along a dimension.
     Each element is repeated 'repeats' times before moving to the next element.
@@ -2273,7 +2275,7 @@ def aten_repeat_interleave(
 
 # t(Tensor(a) self) -> Tensor(a)
 @map_to(aten.t.default)
-def aten_t(input):
+def aten_t(input: TensorValue) -> TensorValue:
     return torch_transpose_equivalent(input, 0, 1)
 
 
@@ -2308,6 +2310,7 @@ def torch_transpose_equivalent(tensor, dim0, dim1):
     return max_ops.permute(tensor, perm)
 
 
+# TODO: find signature
 @map_to(aten._foreach_add)
 def aten__foreach_add(tensors, others, alpha=1.0):
     """
@@ -2329,8 +2332,12 @@ def aten__foreach_add(tensors, others, alpha=1.0):
     return result
 
 
+# masked_fill.Scalar(Tensor self, Tensor mask, Scalar value) -> Tensor
+# masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
 @map_to(aten.masked_fill)
-def aten_masked_fill(input, mask, value):
+def aten_masked_fill(
+    input: TensorValue, mask: TensorValue, value: Scalar | TensorValue
+) -> TensorValue:
     return max_ops.where(mask, value, input)
 
 
@@ -2347,8 +2354,25 @@ def aten_masked_fill(input, mask, value):
 #     SymInt max_q, SymInt max_k, Tensor rng_state, Tensor unused, Tensor debug_attn_mask)
 @map_to(aten._scaled_dot_product_efficient_attention)
 def aten__scaled_dot_product_efficient_attention(
-    query, key, value, dropout_p=0.0, is_causal=False
-):
+    query: TensorValue,
+    key: TensorValue,
+    value: TensorValue,
+    dropout_p: float | None = 0.0,
+    is_causal: bool = False,
+    return_debug_mask: bool = False,
+    *,
+    scale: float | None = None,
+) -> tuple[
+    TensorValue,
+    TensorValue,
+    TensorValue,
+    TensorValue,
+    SymIntType,
+    SymIntType,
+    TensorValue,
+    TensorValue,
+    TensorValue,
+]:
     """
     This function implements the scaled dot-product attention mechanism using MAX's flash_attention_gpu.
     It returns a tuple of 9 elements to match PyTorch's interface.
