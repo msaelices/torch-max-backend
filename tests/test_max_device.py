@@ -6,6 +6,8 @@ import numpy as np
 from torch_max_backend import register_max_devices
 from torch_max_backend.max_device import MaxTensor
 
+pytestmark = pytest.mark.xdist_group(name="group1")
+
 
 @pytest.fixture(autouse=True)
 def setup_max_device():
@@ -167,27 +169,6 @@ def test_device_ordering():
         assert ordered_accelerators[0].label == "gpu"
         # Last device should be CPU
         assert ordered_accelerators[-1].label == "cpu"
-
-
-def test_device_index_mapping():
-    """Test that device indices map correctly"""
-    from torch_max_backend.max_device import (
-        get_ordered_accelerators,
-        max_device_to_torch_device,
-    )
-
-    ordered_accelerators = get_ordered_accelerators()
-
-    # Test each accelerator maps to correct index
-    for i, acc in enumerate(ordered_accelerators):
-        device_str = max_device_to_torch_device(acc)
-
-        if i == 0:
-            # First device should be "max_device" (no index)
-            assert device_str == "max_device"
-        else:
-            # Other devices should have explicit index
-            assert device_str == f"max_device:{i}"
 
 
 def test_device_mapping_consistency():

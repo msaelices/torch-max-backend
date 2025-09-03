@@ -23,26 +23,6 @@ def get_ordered_accelerators():
     return gpu_accelerators + cpu_accelerators
 
 
-def max_device_to_torch_device(x: max.driver.Device) -> str:
-    """Convert a MAX device to a torch device string
-
-    Device mapping:
-    - GPU devices get indices 0, 1, 2, ...
-    - CPU device gets the last index
-    """
-    ordered_accelerators = get_ordered_accelerators()
-
-    # Find the index of this device in our ordered list
-    for i, acc in enumerate(ordered_accelerators):
-        if acc.label == x.label and acc.id == x.id:
-            if i == 0:
-                return "max_device"  # Default device (first GPU or CPU if no GPU)
-            else:
-                return f"max_device:{i}"
-
-    raise ValueError(f"Device not found in accelerator list: {x.label}:{x.id}")
-
-
 def find_equivalent_max_device(device: torch.device) -> max.driver.Device:
     """Find the equivalent MAX device for a given torch device
 
@@ -472,13 +452,9 @@ def tensor(super_fn, data, *args, **kwargs):
 _max_device_mode = None
 
 
-def rename_privateuse_backend():
-    torch.utils.rename_privateuse1_backend("max_device")
-
-
 def register_max_devices():
     """Enable the max_device globally"""
-    rename_privateuse_backend()
+    torch.utils.rename_privateuse1_backend("max_device")
     global _max_device_mode
     if _max_device_mode is None:
         _max_device_mode = MaxDeviceMode()
