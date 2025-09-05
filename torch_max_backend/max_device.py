@@ -8,8 +8,13 @@ from torch.ops import aten
 from collections.abc import Callable
 from torch_max_backend import get_accelerators, MAPPING_TORCH_ATEN_TO_MAX
 import numpy as np
-from max.graph.type import DeviceRef
 from torch_max_backend import torch_max_device_module
+from torch.utils._python_dispatch import TorchDispatchMode
+import os
+
+
+class UseStockImplementation(Exception):
+    pass
 
 
 def get_ordered_accelerators():
@@ -22,6 +27,13 @@ def get_ordered_accelerators():
 
     # Order: GPUs first, then CPU last
     return gpu_accelerators + cpu_accelerators
+
+
+def find_equivalent_torch_device(device: max.driver.Device) -> torch.device:
+    if device.label == "cpu":
+        return torch_max_device_module.cpu()
+    elif device.label == "gpu":
+        return torch.device(f"max_device:{device.id}")
 
 
 def find_equivalent_max_device(device: torch.device) -> max.driver.Device:
@@ -76,10 +88,57 @@ def get_max_equivalent(func) -> Callable:
         raise NotImplementedError(f"Operation {func} not implemented for MaxTensor")
 
 
+FILTERS = {}
+
+
+def map_to(func):
+    def decorator(func_to_map):
+        if os.environ.get("TORCH_MAX_BACKEND_BEARTYPE", "1") == "1":
+            from beartype import beartype
+
+            func_to_map = beartype(func_to_map)
+
+        FILTERS[func] = func_to_map
+        return func_to_map
+
+    return decorator
+
+
+@map_to(aten.arange)
+def aten_arange(
+    start,
+    end=None,
+    step=1,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    pin_memory: bool | None = None,
+):
+    if device is None:
+        raise UseStockImplementation()
+    if device is not None and device.type != "max_device":
+        raise UseStockImplementation()
+
+
+@map_to(aten.empty)
+def aten_empty(
+    size,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    pin_memory: bool | None = None,
+    memory_format: torch.memory_format | None = None,
+):
+    if device is None:
+        raise UseStockImplementation()
+    if device is not None and device.type != "max_device":
+        raise UseStockImplementation()
+
+
 class MaxTensor(torch.Tensor):
     """Custom tensor subclass that holds MAX engine data, similar to MyDeviceTensor in trying_stuff.py"""
-
-    IMPLEMENTATIONS = {}
 
     @staticmethod
     def __new__(cls, shape, dtype, max_data=None, requires_grad=False):
@@ -90,97 +149,120 @@ class MaxTensor(torch.Tensor):
             require_grad=requires_grad,
         )
 
-    def __init__(self, shape, dtype, max_data=None, requires_grad=False):
+    def __init__(
+        self,
+        shape,
+        dtype,
+        max_data: max.driver.Tensor | None = None,
+        requires_grad=False,
+    ):
         # Store the MAX engine data
         self._max_data = max_data
         self._shape = shape
         self._dtype = dtype
 
+    @property
+    def device(self):
+        return find_equivalent_torch_device(self._max_data.device)
+
     def __repr__(self):
-        st = super().__repr__()
-        st = st.replace("device='meta'", "device='max_device'")
-        # Could add more detailed representation if needed
+        st = repr(self.to("cpu"))
+        st = st.replace("device='cpu'", "device='max_device:TBD'")
         return st
 
-    @classmethod
+
+class DispatchMax(TorchDispatchMode):
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
         """Dispatch torch operations to MAX implementations"""
         if kwargs is None:
             kwargs = {}
 
-        if func in cls.IMPLEMENTATIONS:
+        # Allow us to check if Pytorch is trying to build a normal tensor
+        if func.overloadpacket in FILTERS:
             try:
+                FILTERS[func.overloadpacket](*args, **kwargs)
+            except UseStockImplementation:
+                return func(*args, **kwargs)
 
-                def super_fn(*args, **kwargs):
-                    return super(cls, MaxTensor).__torch_dispatch__(
-                        func, types, args, kwargs
-                    )
-
-                return cls.IMPLEMENTATIONS[func](super_fn, *args, **kwargs)
-            except Exception as e:
-                print(f"Error in MaxTensor dispatch for {func}: {e}")
-                raise e
+        # If using only normal torch tensors, we let torch handle the computing too
+        for arg in list(args) + list(kwargs.values()):
+            if isinstance(arg, torch.Tensor) and not isinstance(arg, MaxTensor):
+                return func(*args, **kwargs)
 
         # Try to use the general MAX graph execution
         try:
-            return execute_with_max_graph(func, args, kwargs)
+            result = execute_with_max_graph(func, args, kwargs)
         except NotImplementedError:
             raise RuntimeError(
                 f"No implementation for 'max_device' for {func}, args={args}, kwargs={kwargs}"
             )
+        return result
 
 
-def implements(func):
-    """Decorator to register implementations for MaxTensor operations"""
+def make_hashable(obj):
+    if isinstance(obj, dict):
+        return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+    elif isinstance(obj, list):
+        return tuple(make_hashable(item) for item in obj)
+    elif isinstance(obj, tuple):
+        return tuple(make_hashable(item) for item in obj)
 
-    def _inner_fn(impl):
-        MaxTensor.IMPLEMENTATIONS[func] = impl
-        return impl
-
-    return _inner_fn
+    else:
+        return obj
 
 
-def execute_with_max_graph(func, args, kwargs):
-    """Execute a torch operation using MAX graph compilation"""
-    # Collect input tensors and create placeholders
-    input_tensors = []
-    input_specs = []
-    placeholder_map = {}
+class InputsManager:
+    def __init__(self):
+        self.input_tensors = list[max.driver.Tensor]()  # Fix type
+        self.input_specs = list[TensorType]()
+        self.placeholder_map = dict[int, int]()
 
-    def collect_tensors(arg, path=""):
+    def collect_tensors(self, arg, path=""):
         if isinstance(arg, MaxTensor):
-            if id(arg) not in placeholder_map:
-                idx = len(input_specs)
-                # Determine device based on the actual data location
-                # For now, use CPU since we're storing numpy arrays
-
-                device_ref = DeviceRef.CPU()
-
-                input_specs.append(
-                    TensorType(
-                        dtype=DType.from_torch(arg._dtype),
-                        shape=list(arg._shape),
-                        device=device_ref,
-                    )
+            if id(arg) not in self.placeholder_map:
+                idx = len(self.input_specs)
+                input_type = TensorType(
+                    dtype=DType.from_torch(arg._dtype),
+                    shape=list(arg._shape),
+                    device=arg._max_data.device,
                 )
-                input_tensors.append(arg._max_data)
-                placeholder_map[id(arg)] = idx
-            return f"placeholder_{placeholder_map[id(arg)]}"
+                self.input_specs.append(input_type)
+                self.input_tensors.append(arg._max_data)
+                self.placeholder_map[id(arg)] = idx
+            # important for hashing
+            return f"placeholder_{self.placeholder_map[id(arg)]}_{self.input_specs[self.placeholder_map[id(arg)]]}"
         elif isinstance(arg, list | tuple):
             return type(arg)(
-                collect_tensors(x, f"{path}[{i}]") for i, x in enumerate(arg)
+                self.collect_tensors(x, f"{path}[{i}]") for i, x in enumerate(arg)
             )
         elif isinstance(arg, dict):
-            return {k: collect_tensors(v, f"{path}[{k}]") for k, v in arg.items()}
+            return {k: self.collect_tensors(v, f"{path}[{k}]") for k, v in arg.items()}
         else:
             return arg
 
-    # First pass: collect tensors
-    processed_args = collect_tensors(args)
-    processed_kwargs = collect_tensors(kwargs)
+    def collect_tensors_from_args(self, args, kwargs):
+        return self.collect_tensors(args), self.collect_tensors(kwargs)
 
+
+models_cache = {}
+
+
+def create_model_with_cache(
+    inputs_manager, processed_args, processed_kwargs, func
+) -> tuple[engine.Model, bool]:
+    cache_key = hash(make_hashable((func, processed_args, processed_kwargs)))
+    if cache_key in models_cache:
+        return models_cache[cache_key]
+    model, is_tuple = create_model(
+        inputs_manager, processed_args, processed_kwargs, func
+    )
+    models_cache[cache_key] = (model, is_tuple)
+    return model, is_tuple
+
+
+def create_model(inputs_manager, processed_args, processed_kwargs, func):
     # Build and execute graph
-    with Graph("max_op_graph", input_types=input_specs) as graph:
+    with Graph("max_op_graph", input_types=inputs_manager.input_specs) as graph:
         # Replace placeholders with actual graph inputs
         def replace_placeholders(arg):
             if isinstance(arg, str) and arg.startswith("placeholder_"):
@@ -193,13 +275,13 @@ def execute_with_max_graph(func, args, kwargs):
             else:
                 return arg
 
-        graph_args = replace_placeholders(processed_args)
-        graph_kwargs = replace_placeholders(processed_kwargs)
+        graph_args, graph_kwargs = replace_placeholders(
+            (processed_args, processed_kwargs)
+        )
 
         # Get MAX equivalent function and execute
         func_to_use = get_max_equivalent(func)
         out = func_to_use(*graph_args, **graph_kwargs)
-
         # Handle output
         if isinstance(out, tuple):
             graph.output(*out)
@@ -210,11 +292,24 @@ def execute_with_max_graph(func, args, kwargs):
 
     # Execute the graph
     session = engine.InferenceSession(devices=get_ordered_accelerators())
-    model = session.load(graph)
+    return session.load(graph), is_tuple
 
+
+def execute_with_max_graph(func, args, kwargs):
+    """Execute a torch operation using MAX graph compilation"""
+    # Collect input tensors and create placeholders
+    inputs_manager = InputsManager()
+
+    # First pass: collect tensors
+    processed_args, processed_kwargs = inputs_manager.collect_tensors_from_args(
+        args, kwargs
+    )
+    model, is_tuple = create_model_with_cache(
+        inputs_manager, processed_args, processed_kwargs, func
+    )
     # Convert input tensors to proper MAX format
     max_inputs = []
-    for tensor_data in input_tensors:
+    for tensor_data in inputs_manager.input_tensors:
         if isinstance(tensor_data, np.ndarray):
             # For numpy arrays, we need to pass them directly
             max_inputs.append(tensor_data)
@@ -234,28 +329,9 @@ def execute_with_max_graph(func, args, kwargs):
 def make_max_tensor_from_max(tensor: max.driver.Tensor) -> MaxTensor:
     """Convert a max.driver.Tensor to a MaxTensor"""
     shape = tuple(tensor.shape)
-    dtype = torch.float32  # TODO: Get proper dtype from tensor
+
+    dtype = tensor.dtype.to_torch()
     return MaxTensor(shape, dtype=dtype, max_data=tensor)
-
-
-# Register some basic operations (following trying_stuff.py pattern)
-@implements(aten.add.Tensor)
-def add(super_fn, t1, t2):
-    """Implementation of tensor addition"""
-    return execute_with_max_graph(aten.add.Tensor, (t1, t2), {})
-
-
-@implements(aten.mul.Tensor)
-def mul(super_fn, t1, t2):
-    """Implementation of tensor multiplication"""
-    return execute_with_max_graph(aten.mul.Tensor, (t1, t2), {})
-
-
-@implements(aten.detach.default)
-@implements(aten.alias.default)
-def detach(super_fn, self):
-    """Pass through for detach/alias operations"""
-    return super_fn(self)
 
 
 class MaxDeviceMode(TorchFunctionMode):
@@ -270,11 +346,7 @@ class MaxDeviceMode(TorchFunctionMode):
                 return func(*args, **kwargs)
 
         if func in self.IMPLEMENTATIONS:
-            try:
-                return self.IMPLEMENTATIONS[func](super_fn, *args, **kwargs or {})
-            except Exception as e:
-                print(f"Error in MaxDeviceMode for {func}: {e}")
-                raise e
+            return self.IMPLEMENTATIONS[func](super_fn, *args, **kwargs or {})
 
         # No-op for non-factory functions
         return super_fn(*args, **kwargs or {})
@@ -294,163 +366,116 @@ def implements_factory(func):
 def to(super_fn, self, *args, **kwargs):
     """Handle tensor.to() conversions - supporting device, dtype, and combined calls"""
     # Parse arguments - .to() can be called with device, dtype, or both
-    device = None
-    dtype = None
 
-    # Handle positional arguments
     if args:
-        if len(args) == 1:
-            arg = args[0]
-            if isinstance(arg, str) or isinstance(arg, torch.device):
-                device = arg
-            elif isinstance(arg, torch.dtype):
-                dtype = arg
-            elif hasattr(arg, "device"):  # Another tensor
-                device = arg.device
-                dtype = getattr(arg, "dtype", None)
-        elif len(args) == 2:
-            device, dtype = args
+        if isinstance(args[0], torch.Tensor):
+            return to_tensor(self, *args, **kwargs)
+        elif isinstance(args[0], torch.dtype):
+            return to_dtype(self, *args, **kwargs)
+        else:
+            return to_device(self, *args, **kwargs)
+    else:
+        if "device" in kwargs:
+            return to_device(self, *args, **kwargs)
+        elif "dtype" in kwargs:
+            return to_dtype(self, *args, **kwargs)
+        else:
+            return to_tensor(self, *args, **kwargs)
 
-    # Handle keyword arguments
-    if "device" in kwargs:
-        device = kwargs["device"]
-    if "dtype" in kwargs:
-        dtype = kwargs["dtype"]
+    device = kwargs.get("device")
+    if len(args) >= 1:
+        if isinstance(args[0], str) or isinstance(args[0], torch.device):
+            device = args[0]
 
-    # If neither device nor dtype specified, pass through
-    if device is None and dtype is None:
-        return super_fn(self, *args, **kwargs)
+    result = self.to(*args, **kwargs)
 
-    # Handle device conversion to max_device
-    if device and (
-        device == "max_device"
-        or (isinstance(device, str) and device.startswith("max_device"))
+    # Should we go back to pure pytorch? We check it here:
+    if isinstance(device, str):
+        device = torch.device(device)
+    if (
+        device is not None
+        and device.type != "max_device"
+        and isinstance(result, MaxTensor)
     ):
-        if isinstance(self, MaxTensor):
-            # Already a MaxTensor, handle dtype conversion if needed
-            if dtype and dtype != self._dtype:
-                # Convert dtype by converting to CPU, changing dtype, then back
+        # We have to convert it to a pure pytorch tensor
+        result = torch.from_dlpack(result._max_data)
+    return result
 
-                if isinstance(self._max_data, np.ndarray):
-                    cpu_tensor = torch.from_numpy(self._max_data.copy())
-                    converted = cpu_tensor.to(dtype=dtype)
-                    np_data = converted.detach().cpu().numpy()
-                    return MaxTensor(converted.shape, dtype=dtype, max_data=np_data)
-            return self
 
-        # Convert regular tensor to MaxTensor
-        tensor_to_convert = self
-        if dtype:
-            tensor_to_convert = self.to(dtype=dtype)
-        np_data = tensor_to_convert.detach().cpu().numpy()
-        return MaxTensor(
-            tensor_to_convert.shape, dtype=tensor_to_convert.dtype, max_data=np_data
+def use_stock_to(self: torch.Tensor, device: torch.device | None) -> bool:
+    if not isinstance(self, MaxTensor):
+        if device is None:
+            return True
+        if device.type != "max_device":
+            return True
+    return False
+
+
+def to_dtype(
+    self, dtype, non_blocking=False, copy=False, memory_format=torch.preserve_format
+):
+    return to_device(
+        None,
+        dtype=dtype,
+        non_blocking=non_blocking,
+        copy=copy,
+        memory_format=memory_format,
+    )
+
+
+def to_device(
+    self,
+    device=None,
+    dtype=None,
+    non_blocking=False,
+    copy=False,
+    memory_format=torch.preserve_format,
+):
+    if isinstance(device, str):
+        device = torch.device(device)
+    if use_stock_to(self, device):
+        return self.to(
+            device=device,
+            dtype=dtype,
+            non_blocking=non_blocking,
+            copy=copy,
+            memory_format=memory_format,
         )
 
-    elif isinstance(self, MaxTensor):
-        # Convert MaxTensor back to regular tensor
+    if not isinstance(self, MaxTensor):
+        # Let's convert it to MaxTensor first
+        self = make_max_tensor_from_max(max.driver.Tensor.from_dlpack(self))
 
-        if isinstance(self._max_data, np.ndarray):
-            result = torch.from_numpy(self._max_data.copy())
-        elif isinstance(self._max_data, max.driver.Tensor):
-            # Convert MAX tensor back to numpy then torch
-            np_data = self._max_data.to_numpy()
-            # Copy to ensure writable array
-            result = torch.from_numpy(np_data.copy())
-        else:
-            # Unknown data type - this should not happen
-            raise RuntimeError(f"Unknown MaxTensor data type: {type(self._max_data)}")
+    if device is not None:
+        self = make_max_tensor_from_max(
+            self._max_data.to(find_equivalent_max_device(device))
+        )
 
-        # Apply device and/or dtype conversion
-        return result.to(*args, **kwargs)
-    else:
-        # For non-MaxTensor, just pass through unless it's a dtype-only conversion
-        if device is None and dtype:
-            # This is a dtype-only conversion, let PyTorch handle it
-            return super_fn(self, *args, **kwargs)
-        return super_fn(self, *args, **kwargs)
+        if device.type != "max_device":
+            # We should already be in the right device, we just need to convert to normal torch tensor
+            torch_tensor = torch.from_dlpack(self._max_data)
+            return torch_tensor.to(
+                dtype=dtype,
+                non_blocking=non_blocking,
+                copy=copy,
+                memory_format=memory_format,
+            )
 
+    # If we got to this point, it means we are just doing a dtype conversion in max land.
+    if dtype is None:
+        return self
 
-# Factory functions for creating tensors directly on max_device
-def get_factory_wrapper(np_func):
-    """Wrapper for numpy-based factory functions - following trying_stuff.py pattern"""
-
-    def inner(super_fn, *args, **kwargs):
-        # Check device as string, supporting both "max_device" and "max_device:N"
-        device_str = str(kwargs.get("device", None))
-        if device_str == "max_device" or device_str.startswith("max_device:"):
-            # Default dtype depends on the function - arange defaults to int64, others to float32
-            if np_func == np.arange:
-                default_dtype = torch.int64
-            else:
-                default_dtype = torch.float32
-            dtype = kwargs.get("dtype", default_dtype)
-
-            if np_func == np.random.rand:
-                # Special case for rand which takes size as positional args
-                np_data = np_func(*args)
-            elif np_func == np.arange:
-                # arange takes end value and should match the requested dtype
-                if args:
-                    # Convert dtype from torch to numpy
-                    if dtype == torch.float32:
-                        np_dtype = np.float32
-                    elif dtype == torch.float64:
-                        np_dtype = np.float64
-                    elif dtype == torch.int32:
-                        np_dtype = np.int32
-                    elif dtype == torch.int64:
-                        np_dtype = np.int64
-                    else:
-                        np_dtype = np.float32  # default
-                    np_data = np_func(args[0], dtype=np_dtype)
-                else:
-                    np_data = np_func(10, dtype=np.float32)  # default
-            else:
-                # For functions like empty
-                if args:
-                    if isinstance(args[0], list | tuple):
-                        shape = args[0]
-                    else:
-                        shape = args  # multiple args for shape
-                    np_data = np_func(shape)
-                else:
-                    np_data = np_func((1,))  # default shape
-
-            return MaxTensor(np_data.shape, dtype=dtype, max_data=np_data)
-        else:
-            return super_fn(*args, **kwargs)
-
-    return inner
+    # Very simple graph to convert dtype
+    return execute_with_max_graph(aten._to_copy, (self,), dict(dtype=dtype))
 
 
-implements_factory(torch.rand)(get_factory_wrapper(np.random.rand))
-implements_factory(torch.arange)(get_factory_wrapper(np.arange))
-implements_factory(torch.empty)(get_factory_wrapper(np.empty))
-
-
-# Add support for torch.tensor with device argument
-@implements_factory(torch.tensor)
-def tensor(super_fn, data, *args, **kwargs):
-    """Handle torch.tensor with max_device"""
-    device = kwargs.get("device", None)
-    if isinstance(device, str) and (
-        device == "max_device" or device.startswith("max_device:")
-    ):
-        # First create on CPU with proper dtype
-        kwargs_cpu = kwargs.copy()
-        kwargs_cpu["device"] = "cpu"
-        cpu_tensor = super_fn(data, *args, **kwargs_cpu)
-
-        # Then convert to MaxTensor
-        np_data = cpu_tensor.numpy()
-        return MaxTensor(cpu_tensor.shape, cpu_tensor.dtype, max_data=np_data)
-
-    return super_fn(data, *args, **kwargs)
+def to_tensor(self, other, non_blocking=False, copy=False):
+    return to_device(other.device, other.dtype, non_blocking=non_blocking, copy=copy)
 
 
 # Global mode holder
 _max_device_mode = None
+_max_device_function_mode = None
 
 
 def rename_privateuse_backend():
@@ -470,6 +495,7 @@ def generate_methods_for_privateuse_backend():
 def register_max_devices():
     """Enable the max_device globally"""
     global _max_device_mode
+    global _max_device_function_mode
     if _max_device_mode is not None:
         # Already registered
         return
@@ -477,5 +503,7 @@ def register_max_devices():
     rename_privateuse_backend()
     register_device_module()
     generate_methods_for_privateuse_backend()
-    _max_device_mode = MaxDeviceMode()
+    _max_device_mode = DispatchMax()
+    _max_device_function_mode = MaxDeviceMode()
     _max_device_mode.__enter__()
+    _max_device_function_mode.__enter__()
