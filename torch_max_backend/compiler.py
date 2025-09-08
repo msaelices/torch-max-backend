@@ -334,10 +334,17 @@ class BaseMaxCompiler:
         return result
 
 
-def max_backend(*args, **kwargs):
-    def boxed_func(*args, **kwargs):
-        return make_boxed_func(BaseMaxCompiler(*args, **kwargs).__call__)
+class max_backend:
+    def __init__(self, gm: torch.fx.GraphModule, example_inputs: list):
+        def boxed_func(*args, **kwargs):
+            return make_boxed_func(BaseMaxCompiler(*args, **kwargs).__call__)
 
-    return aot_autograd(fw_compiler=boxed_func, decompositions=DECOMPOSITION_TABLE)(
-        *args, **kwargs
-    )
+        self.func_to_execute = aot_autograd(
+            fw_compiler=boxed_func, decompositions=DECOMPOSITION_TABLE
+        )(gm, example_inputs)
+
+    def __call__(self, *args) -> list[torch.Tensor | None]:
+        result = self.func_to_execute(*args)
+        if isinstance(result, tuple):
+            return list(result)
+        return result

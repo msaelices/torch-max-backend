@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from torch_max_backend import max_backend, get_accelerators, register_max_devices
+from torch_max_backend import max_backend, get_accelerators
 from torch._dynamo import mark_dynamic
 import os
 
@@ -10,7 +10,7 @@ os.environ["TORCH_MAX_BACKEND_PROFILE"] = "1"
 os.environ["TORCH_MAX_BACKEND_VERBOSE"] = "1"
 
 # check compatibility
-register_max_devices()
+# register_max_devices()
 
 
 class CausalSelfAttention(nn.Module):
@@ -365,6 +365,7 @@ def main():
     print("\n" + "=" * 50)
     print("Testing completed successfully!")
     print("=" * 50)
+    print(torch._dynamo.utils.compile_times())
 
 
 if __name__ == "__main__":
