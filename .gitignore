@@ -16,3 +16,6 @@ modular/
 *.lprof
 *.pth
 tokenizer.json
+Qwen3-4B/
+Qwen3-0.6B/
+gemma-3-270m-it/
