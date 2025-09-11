@@ -3,6 +3,7 @@ import pytest
 from torch_max_backend.testing import check_functions_are_equivalent
 from torch.ops import aten
 from torch._dynamo.exc import BackendCompilerFailed
+from torch._dynamo import mark_dynamic
 
 
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
@@ -203,6 +204,80 @@ def test_aten_amax_all_dims(device: str, dtype: torch.dtype):
     # Test with 1D tensor
     x1d = torch.randn(10, dtype=dtype, device=device)
     check_functions_are_equivalent(fn, device, [x1d])
+
+
+@pytest.mark.parametrize(
+    "dtype", [torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64]
+)
+def test_aten_bitwise_and(device: str, dtype: torch.dtype):
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors
+    x = torch.randint(0, 10, (3, 4), dtype=dtype, device=device)
+    y = torch.randint(0, 10, (3, 4), dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x, y])
+
+
+def test_aten_bitwise_and_bool(device: str):
+    dtype = torch.bool
+
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors
+    x = torch.randint(0, 2, (3, 4), dtype=dtype, device=device)
+    y = torch.randint(0, 2, (3, 4), dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x, y])
+
+
+def test_aten_bitwise_and_broadcasting(device: str):
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors with broadcasting shapes
+    x = torch.randint(0, 10, (3, 4, 5), dtype=torch.int32)
+    y = torch.randint(0, 10, (5,), dtype=torch.int32)
+
+    check_functions_are_equivalent(fn, device, [x, y])
+
+
+def test_aten_bitwise_and_broadcasting_ones(device: str):
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors with broadcasting shapes
+    x = torch.randint(0, 100, (3, 1, 5), dtype=torch.int32)
+    y = torch.randint(0, 100, (1, 4, 5), dtype=torch.int32)
+
+    check_functions_are_equivalent(fn, device, [x, y])
+
+
+def test_aten_bitwise_and_broadcasting_ones_pad(device: str):
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors with broadcasting shapes
+    x = torch.randint(0, 100, (8, 3, 1, 5), dtype=torch.int32)
+    y = torch.randint(0, 100, (1, 4, 5), dtype=torch.int32)
+
+    check_functions_are_equivalent(fn, device, [x, y])
+
+
+def test_aten_bitwise_and_broadcasting_ones_pad_dynamic_dim(device: str):
+    def fn(x, y):
+        return aten.bitwise_and(x, y)
+
+    # Create test tensors with broadcasting shapes
+    x = torch.randint(0, 100, (8, 3, 1, 5), dtype=torch.int32, device=device)
+    mark_dynamic(x, 0)
+    mark_dynamic(x, 1)
+    y = torch.randint(0, 100, (1, 4, 5), dtype=torch.int32, device=device)
+    mark_dynamic(y, 1)
+
+    check_functions_are_equivalent(fn, None, [x, y])
 
 
 @pytest.mark.parametrize("dim", [0, 1, 2])
