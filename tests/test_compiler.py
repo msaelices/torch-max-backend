@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch_max_backend import max_backend
+from torch_max_backend import max_backend, make_torch_op_from_mojo
 from torch._dynamo import mark_dynamic
 import io
 from unittest.mock import patch
@@ -12,6 +12,7 @@ import pytest
 from torch._dynamo.exc import BackendCompilerFailed
 import torch_max_backend
 import torch_max_backend.compiler
+from pathlib import Path
 
 
 def test_basic_training(device: str):
@@ -651,3 +652,199 @@ def test_decomposition_overload_packet(monkeypatch):
     # it's normally decomposed. We check that it's not the case since we
     # implemented it ourselves.
     assert aten.transpose.int in [node.target for node in input_gm.graph.nodes]
+
+
+def allocate_outputs_grayscale(pic: torch.Tensor) -> torch.Tensor:
+    return pic.new_empty(pic.shape[:-1], dtype=torch.float32)
+
+
+my_torch_grayscale = make_torch_op_from_mojo(
+    Path(__file__).parent / "dummy_mojo_kernels",
+    "grayscale",
+    allocate_outputs_grayscale,
+)
+
+
+def grayscale_eager(pic: torch.Tensor):
+    pic = pic.to(dtype=torch.float32)
+    r = pic[:, :, 0]
+    g = pic[:, :, 1]
+    b = pic[:, :, 2]
+    return torch.clamp((0.21 * r + 0.71 * g + 0.07 * b), max=255)
+
+
+def test_mojo_custom_op(device: str):
+    img = torch.randn(224, 224, 3, device=device).to(dtype=torch.uint8)
+
+    x = my_torch_grayscale(img)
+    y = grayscale_eager(img)
+    torch.testing.assert_close(x, y)
+    check_functions_are_equivalent(
+        grayscale_eager, None, [img], fn_compiled=my_torch_grayscale
+    )
+
+    def more_complexe_graph(x: torch.Tensor):
+        x = x + 8
+        y = my_torch_grayscale(x)
+        y = y - 16
+        return y
+
+    def more_complexe_graph_eager(x: torch.Tensor):
+        x = x + 8
+        y = grayscale_eager(x)
+        y = y - 16
+        return y
+
+    x = more_complexe_graph(img)
+    y = more_complexe_graph_eager(img)
+
+    complexe_graph_compiled = torch.compile(backend=max_backend, fullgraph=True)(
+        more_complexe_graph
+    )
+    z = complexe_graph_compiled(img)
+    torch.testing.assert_close(x, y)
+    torch.testing.assert_close(x, z)
+
+    explanation = torch._dynamo.explain(more_complexe_graph)(img)
+    assert explanation.graph_break_count == 0
+    assert explanation.graph_count == 1
+
+    check_functions_are_equivalent(
+        more_complexe_graph_eager, None, [img], fn_compiled=complexe_graph_compiled
+    )
+
+
+def allocate_outputs_grayscale_multi(
+    pic: torch.Tensor, noise: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    return tuple(pic.new_empty(noise.shape, dtype=torch.float32) for _ in range(2))
+
+
+my_torch_grayscale_multi = make_torch_op_from_mojo(
+    Path(__file__).parent / "dummy_mojo_kernels",
+    "grayscale_multi",
+    allocate_outputs_grayscale_multi,
+)
+
+
+def grayscale_multi_eager(
+    pic: torch.Tensor, noise: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    pic = pic.to(dtype=torch.float32)
+    r = pic[:, :, 0] + noise
+    g = pic[:, :, 1] + noise
+    b = pic[:, :, 2] + noise
+
+    return (torch.clamp((0.21 * r + 0.71 * g + 0.07 * b), max=255), r)
+
+
+def test_mojo_custom_op_multi(device: str):
+    img = torch.randn(224, 224, 3, device=device).to(dtype=torch.uint8)
+    noise = torch.randint(0, 2, (224, 224), device=device).to(dtype=torch.uint8)
+
+    x1, x2 = my_torch_grayscale_multi(img, noise)
+    y1, y2 = grayscale_multi_eager(img, noise)
+    torch.testing.assert_close(x1, y1)
+    torch.testing.assert_close(x2, y2)
+    check_functions_are_equivalent(
+        grayscale_multi_eager, None, [img, noise], fn_compiled=my_torch_grayscale_multi
+    )
+
+    def more_complexe_graph(
+        x: torch.Tensor, noise: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = x + 8
+        y1, y2 = my_torch_grayscale_multi(x, noise)
+        y1 = y1 - 16
+        y2 = y2 + 3
+        return y1, y2
+
+    def more_complexe_graph_eager(
+        x: torch.Tensor, noise: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = x + 8
+        y1, y2 = grayscale_multi_eager(x, noise)
+        y1 = y1 - 16
+        y2 = y2 + 3
+        return y1, y2
+
+    x1, x2 = more_complexe_graph(img, noise)
+    y1, y2 = more_complexe_graph_eager(img, noise)
+
+    complexe_graph_compiled = torch.compile(backend=max_backend, fullgraph=True)(
+        more_complexe_graph
+    )
+    z1, z2 = complexe_graph_compiled(img, noise)
+    torch.testing.assert_close(x1, y1)
+    torch.testing.assert_close(x1, z1)
+    torch.testing.assert_close(x2, y2)
+    torch.testing.assert_close(x2, z2)
+
+    explanation = torch._dynamo.explain(more_complexe_graph)(img, noise)
+    assert explanation.graph_break_count == 0
+    assert explanation.graph_count == 1
+
+    check_functions_are_equivalent(
+        more_complexe_graph_eager,
+        None,
+        [img, noise],
+        fn_compiled=complexe_graph_compiled,
+    )
+
+
+def test_mojo_custom_op_multi_dynamic_dims(device: str):
+    img = torch.randn(224, 224, 3, device=device).to(dtype=torch.uint8)
+    mark_dynamic(img, 0)
+    mark_dynamic(img, 1)
+    noise = torch.randint(0, 2, (224, 224), device=device).to(dtype=torch.uint8)
+    mark_dynamic(noise, 0)
+    mark_dynamic(noise, 1)
+
+    x1, x2 = my_torch_grayscale_multi(img, noise)
+    y1, y2 = grayscale_multi_eager(img, noise)
+    torch.testing.assert_close(x1, y1)
+    torch.testing.assert_close(x2, y2)
+    check_functions_are_equivalent(
+        grayscale_multi_eager, None, [img, noise], fn_compiled=my_torch_grayscale_multi
+    )
+
+    def more_complexe_graph(
+        x: torch.Tensor, noise: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = x + 8
+        y1, y2 = my_torch_grayscale_multi(x, noise)
+        y1 = y1 - 16
+        y2 = y2 + 3
+        return y1, y2
+
+    def more_complexe_graph_eager(
+        x: torch.Tensor, noise: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = x + 8
+        y1, y2 = grayscale_multi_eager(x, noise)
+        y1 = y1 - 16
+        y2 = y2 + 3
+        return y1, y2
+
+    x1, x2 = more_complexe_graph(img, noise)
+    y1, y2 = more_complexe_graph_eager(img, noise)
+
+    complexe_graph_compiled = torch.compile(backend=max_backend, fullgraph=True)(
+        more_complexe_graph
+    )
+    z1, z2 = complexe_graph_compiled(img, noise)
+    torch.testing.assert_close(x1, y1)
+    torch.testing.assert_close(x1, z1)
+    torch.testing.assert_close(x2, y2)
+    torch.testing.assert_close(x2, z2)
+
+    explanation = torch._dynamo.explain(more_complexe_graph)(img, noise)
+    assert explanation.graph_break_count == 0
+    assert explanation.graph_count == 1
+
+    check_functions_are_equivalent(
+        more_complexe_graph_eager,
+        None,
+        [img, noise],
+        fn_compiled=complexe_graph_compiled,
+    )

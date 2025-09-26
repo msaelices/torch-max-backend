@@ -37,6 +37,8 @@ class GlobalMaxObjects:
 
 _global_max_objects: GlobalMaxObjects | None = None
 
+paths_to_mojo_kernels = [Path(__file__).parent / "mojo_kernels"]
+
 
 def global_max_objects() -> GlobalMaxObjects:
     global _global_max_objects
@@ -44,7 +46,7 @@ def global_max_objects() -> GlobalMaxObjects:
         context = mlir.Context()
         with context:
             kernel_library = KernelLibrary(context)
-            kernel_library.load_paths(context, [Path(__file__).parent / "mojo_kernels"])
+            kernel_library.load_paths(context, paths_to_mojo_kernels)
         session = engine.InferenceSession(devices=list(get_accelerators()))
         debug.set_print_options(session)
 
@@ -126,6 +128,8 @@ class TensorsBook:
         elif something == ...:
             return ...
         elif isinstance(something, torch.nn.Module):
+            return something
+        elif isinstance(something, torch._ops.OpOverload):
             return something
         raise ValueError(f"Unsupported type when reading the graph: {type(something)}")
 
@@ -209,6 +213,22 @@ class _GraphFactory:
         func_kwargs = {
             k: self.tensor_book.convert_to_max(v) for k, v in node.kwargs.items()
         }
+        if isinstance(
+            node.target, torch._higher_order_ops.auto_functionalize.AutoFunctionalizedV2
+        ):
+            # This is a torch-max-backend custom op. Let's add it to the graph.
+            # (no graph break here)
+            key = func_args[0]
+            normalized_name = str(key).removesuffix(".default")
+            func_to_execute = MAPPING_TORCH_ATEN_TO_MAX[normalized_name]
+            # without hidden keys
+            input_tensors = [v for k, v in func_kwargs.items() if not k.startswith("_")]
+            # We pray the gods that the order is correct here
+            # because we only work with positional arguments
+            self.tensor_book[node.name] = func_to_execute(
+                *func_kwargs["_all_bases"], *input_tensors
+            )
+            return
         key = node.target
 
         # TODO: refactor this
@@ -300,6 +320,8 @@ class BaseMaxCompiler:
             gm.graph.print_tabular()
 
         graph, self.output_blueprint = _GraphFactory().create_graph(gm)
+        if verbose_enabled():
+            print(graph)
         if profiling_enabled():
             graph_defined_time = time.time_ns()
         self.model = global_max_objects().session.load(graph)
