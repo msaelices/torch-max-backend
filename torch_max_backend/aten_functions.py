@@ -2324,7 +2324,6 @@ def aten_sum(
 # sym_storage_offset(Tensor self) -> SymInt
 # sym_stride.int(Tensor self, int dim) -> SymInt
 # tan(Tensor self) -> Tensor
-# tanh(Tensor self) -> Tensor
 # topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)
 # trunc(Tensor self) -> Tensor
 
