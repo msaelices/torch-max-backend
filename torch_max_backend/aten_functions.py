@@ -240,7 +240,7 @@ def aten__native_batch_norm_legit_no_training(
     running_var: TensorValue,
     momentum: float,
     eps: float,
-) -> tuple[TensorValue, TensorValue, TensorValue]:
+) -> tuple[TensorValue, NotImplementedError, NotImplementedError]:
     """
     Implements batch normalization for inference (no training).
 
@@ -284,12 +284,19 @@ def aten__native_batch_norm_legit_no_training(
         bias_reshaped = max_ops.reshape(bias, broadcast_shape)
         normalized = normalized + bias_reshaped
 
-    # Create empty tensors for save_mean and save_var (inference mode)
-    # These should be 0-dimensional tensors
-    zero_scalar = max_ops.constant(np.array([]), dtype=input.dtype, device=input.device)
-    empty_tensor = max_ops.reshape(zero_scalar, [0])
-
-    return (normalized, empty_tensor, empty_tensor)
+    # It's not sure we'll ever support returning those, notably because of
+    # https://github.com/pytorch/pytorch/issues/85960
+    return (
+        normalized,
+        NotImplementedError(
+            "We don't support returning the saved mean "
+            "in aten._native_batch_norm_legit_no_training yet"
+        ),
+        NotImplementedError(
+            "We don't support returning the saved variance "
+            "in aten._native_batch_norm_legit_no_training yet"
+        ),
+    )
 
 
 # _pdist_forward(Tensor self, float p=2) -> Tensor
@@ -1426,7 +1433,7 @@ def aten_fill_scalar(input: TensorValue, value: Scalar) -> TensorValue:
     target_shape = input.shape
 
     # Create a scalar constant with the fill value
-    scalar = max_ops.constant(np.array(value), dtype=target_dtype, device=target_device)
+    scalar = max_ops.constant(value, dtype=target_dtype, device=target_device)
 
     # Broadcast the scalar to the target shape
     return max_ops.broadcast_to(scalar, target_shape)
@@ -1469,7 +1476,7 @@ def aten_full(
     device = torch_device_to_max_device(device)
 
     # Create a scalar constant with the fill value
-    scalar = max_ops.constant(np.array(fill_value), dtype=dtype, device=device)
+    scalar = max_ops.constant(fill_value, dtype=dtype, device=device)
 
     # Broadcast the scalar to the target shape
     return max_ops.broadcast_to(scalar, size)
@@ -1503,9 +1510,7 @@ def aten_full_like(
     target_shape = input.shape
 
     # Create a scalar constant with the fill value
-    scalar = max_ops.constant(
-        np.array(fill_value), dtype=target_dtype, device=target_device
-    )
+    scalar = max_ops.constant(fill_value, dtype=target_dtype, device=target_device)
 
     # Broadcast the scalar to the target shape
     return max_ops.broadcast_to(scalar, target_shape)
@@ -2644,15 +2649,9 @@ def aten__scaled_dot_product_efficient_attention(
     # Use output tensor properties for device and dtype consistency
 
     # Create a zero scalar and broadcast to different shapes
-    zero_scalar = max_ops.constant(
-        np.array(0.0), dtype=output.dtype, device=output.device
-    )
-    zero_int_scalar = max_ops.constant(
-        np.array(0), dtype=DType.int32, device=output.device
-    )
-    zero_int64_scalar = max_ops.constant(
-        np.array(0), dtype=DType.int64, device=output.device
-    )
+    zero_scalar = max_ops.constant(0, dtype=output.dtype, device=output.device)
+    zero_int_scalar = max_ops.constant(0, dtype=DType.int32, device=output.device)
+    zero_int64_scalar = max_ops.constant(0, dtype=DType.int64, device=output.device)
 
     # Create appropriately shaped tensors
     # Convert all dimensions to int for indexing
