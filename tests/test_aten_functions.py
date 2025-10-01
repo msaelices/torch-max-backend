@@ -1203,6 +1203,89 @@ def test_aten_sinh_scalar_tensor(device: str):
     check_functions_are_equivalent(fn, device, [x])
 
 
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+def test_aten_tanh_basic(device: str, dtype: torch.dtype):
+    """Test aten.tanh basic functionality with floating point numbers"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(x):
+        return aten.tanh(x)
+
+    # Test with positive, negative, and zero values
+    # tanh(0) = 0, tanh is odd function: tanh(-x) = -tanh(x)
+    # tanh output is bounded: -1 < tanh(x) < 1
+    x = torch.tensor([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0], dtype=dtype, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_2d_tensor(device: str):
+    """Test aten.tanh with 2D tensor"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    x = torch.tensor(
+        [[-1.5, -0.5], [0.0, 1.0], [1.5, 2.5]], dtype=torch.float32, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_3d_tensor(device: str):
+    """Test aten.tanh with 3D tensor"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    x = torch.randn(2, 3, 4, dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_large_values(device: str):
+    """Test aten.tanh with large values (should approach ±1)"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    # Large values should saturate near ±1
+    x = torch.tensor([-10.0, -5.0, 5.0, 10.0], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_small_values(device: str):
+    """Test aten.tanh with small values near zero"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    # For small x, tanh(x) ≈ x
+    x = torch.tensor(
+        [-0.1, -0.01, -0.001, 0.001, 0.01, 0.1], dtype=torch.float32, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_single_element(device: str):
+    """Test aten.tanh with single element tensor"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    x = torch.tensor([1.5], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_tanh_scalar_tensor(device: str):
+    """Test aten.tanh with scalar tensor"""
+
+    def fn(x):
+        return aten.tanh(x)
+
+    x = torch.tensor(1.0, dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
 @pytest.mark.parametrize("repeats", [1, 2, 3, 5])
 @pytest.mark.parametrize("dim", [0, 1, -1])
 def test_aten_repeat_interleave_basic(device: str, repeats: int, dim: int):
