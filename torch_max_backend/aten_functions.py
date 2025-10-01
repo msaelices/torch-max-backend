@@ -1212,6 +1212,10 @@ def aten_cos(x: TensorValue) -> TensorValue:
 
 
 # cosh(Tensor self) -> Tensor
+@map_to(aten.cosh)
+def aten_cosh(x: TensorValue) -> TensorValue:
+    """Computes hyperbolic cosine using cosh(x) = (exp(x) + exp(-x)) / 2"""
+    return (max_ops.exp(x) + max_ops.exp(-x)) / 2
 
 
 # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
