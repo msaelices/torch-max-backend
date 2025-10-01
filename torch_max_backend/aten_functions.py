@@ -2235,6 +2235,10 @@ def aten_tanh(x: TensorValue) -> TensorValue:
 
 
 # sinh(Tensor self) -> Tensor
+@map_to(aten.sinh)
+def aten_sinh(x: TensorValue) -> TensorValue:
+    """Computes hyperbolic sine using sin(h) = (exp(h) - exp(-h)) / 2"""
+    return (max_ops.exp(x) - max_ops.exp(-x)) / 2
 
 
 # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
