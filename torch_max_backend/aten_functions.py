@@ -2204,6 +2204,23 @@ def aten_scalar_tensor(
 
 # scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
 # scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor
+@map_to(aten.scatter.value)
+def aten_scatter_value(
+    input: TensorValue, dim: int, index: TensorValue, value: Scalar
+) -> TensorValue:
+    """Scatters a scalar value into input tensor at positions specified by index along dimension dim.
+
+    For a 3D tensor with dim=0, this performs:
+        output[index[i][j][k]][j][k] = value
+    """
+    # Broadcast the scalar value to match the index shape
+    # We need to create a tensor filled with the value in the same shape as index
+    updates = max_ops.broadcast_to(
+        max_ops.constant(value, dtype=input.dtype, device=input.device), index.shape
+    )
+    return max_ops.scatter(input, updates, index, axis=dim)
+
+
 # scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
 # scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor
 

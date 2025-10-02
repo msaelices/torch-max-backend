@@ -1252,6 +1252,81 @@ def test_aten_repeat_interleave_large_repeats(device: str):
     check_functions_are_equivalent(fn, device, [x])
 
 
+def test_aten_scatter_value_basic(device: str):
+    """Test aten.scatter.value with scalar value - basic functionality"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 0, index, 1.0)
+
+    # Create base tensor of zeros
+    x = torch.zeros(3, 5, device=device)
+    # Indices where we want to write along dimension 0
+    index = torch.tensor(
+        [[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]], dtype=torch.long, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_diagonal(device: str):
+    """Test aten.scatter.value with scalar value - create diagonal pattern"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 0, index, 5.0)
+
+    x = torch.zeros(3, 3, device=device)
+    index = torch.tensor([[0, 1, 2]], dtype=torch.long, device=device)
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+@pytest.mark.parametrize(
+    "dtype", [torch.float32, torch.float64, torch.int32, torch.int64]
+)
+def test_aten_scatter_value_dtypes(device: str, dtype: torch.dtype):
+    """Test aten.scatter.value with scalar value - different dtypes"""
+
+    def fn(x, index):
+        if dtype in [torch.int32, torch.int64]:
+            return aten.scatter.value(x, 0, index, 7)
+        else:
+            return aten.scatter.value(x, 0, index, 3.5)
+
+    if dtype in [torch.int32, torch.int64]:
+        x = torch.zeros(4, 4, dtype=dtype, device=device)
+    else:
+        x = torch.zeros(4, 4, dtype=dtype, device=device)
+
+    index = torch.tensor([[0, 1, 2, 3]], dtype=torch.long, device=device)
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_dim1(device: str):
+    """Test aten.scatter.value with scalar value along dimension 1"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 1, index, 2.5)
+
+    x = torch.zeros(3, 5, device=device)
+    index = torch.tensor(
+        [[0, 2, 4], [1, 3, 4], [0, 1, 2]], dtype=torch.long, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_3d(device: str):
+    """Test aten.scatter.value with scalar value on 3D tensor"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 1, index, 9.0)
+
+    x = torch.zeros(2, 3, 4, device=device)
+    index = torch.tensor(
+        [[[0, 1, 2, 0], [1, 2, 0, 1]], [[2, 0, 1, 2], [0, 1, 2, 1]]],
+        dtype=torch.long,
+        device=device,
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
 def test_aten_split_with_sizes_basic(device: str):
     """Test aten.split_with_sizes with basic splits"""
 
