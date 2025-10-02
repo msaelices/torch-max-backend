@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch._dynamo import mark_dynamic
 
+from torch_max_backend import max_backend
 from torch_max_backend.testing import check_functions_are_equivalent
 
 
@@ -4669,6 +4670,77 @@ def test_movedim_2d_tensor(device: str):
 
     x = torch.randn(3, 4)
     check_functions_are_equivalent(fn, device, [x])
+
+
+def test_optimizer(device: str):
+    # Create two identical models
+    torch.manual_seed(42)
+    model_compiled = torch.nn.Sequential(
+        torch.nn.Linear(8, 8, False, device=device),
+        torch.nn.Linear(8, 8, False, device=device),
+    )
+
+    torch.manual_seed(42)
+    model_uncompiled = torch.nn.Sequential(
+        torch.nn.Linear(8, 8, False, device=device),
+        torch.nn.Linear(8, 8, False, device=device),
+    )
+
+    # Same input for both
+    torch.manual_seed(123)
+    input_data = torch.rand(8, device=device)
+
+    # Forward and backward for compiled version
+    output_compiled = model_compiled(input_data)
+    output_compiled.sum().backward()
+
+    # Forward and backward for uncompiled version
+    output_uncompiled = model_uncompiled(input_data)
+    output_uncompiled.sum().backward()
+
+    # Create optimizers
+    opt_compiled = torch.optim.Adam(model_compiled.parameters(), lr=0.01)
+    opt_uncompiled = torch.optim.Adam(model_uncompiled.parameters(), lr=0.01)
+
+    # Run optimizer step with compilation
+    @torch.compile(backend=max_backend)
+    def fn_compiled():
+        opt_compiled.step()
+
+    fn_compiled()
+
+    # Run optimizer step without compilation
+    opt_uncompiled.step()
+
+    # Compare results: parameters should be the same after first optimizer step
+    for p_compiled, p_uncompiled in zip(
+        model_compiled.parameters(), model_uncompiled.parameters()
+    ):
+        torch.testing.assert_close(p_compiled, p_uncompiled)
+
+    # Run a second forward/backward pass and optimizer step
+    torch.manual_seed(456)
+    input_data_2 = torch.rand(8, device=device)
+
+    # Second forward and backward for compiled version
+    output_compiled_2 = model_compiled(input_data_2)
+    output_compiled_2.sum().backward()
+
+    # Second forward and backward for uncompiled version
+    output_uncompiled_2 = model_uncompiled(input_data_2)
+    output_uncompiled_2.sum().backward()
+
+    # Second optimizer step with compilation
+    fn_compiled()
+
+    # Second optimizer step without compilation
+    opt_uncompiled.step()
+
+    # Compare results: parameters should be the same after second optimizer step
+    for p_compiled, p_uncompiled in zip(
+        model_compiled.parameters(), model_uncompiled.parameters()
+    ):
+        torch.testing.assert_close(p_compiled, p_uncompiled)
 
 
 # TODO: support list as input too
