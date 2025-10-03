@@ -2203,6 +2203,18 @@ def aten_scalar_tensor(
 
 
 # scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
+@map_to(aten.scatter.src)
+def aten_scatter_src(
+    input: TensorValue, dim: int, index: TensorValue, src: TensorValue
+) -> TensorValue:
+    """Scatters values from src tensor into input at positions specified by index along dimension dim.
+
+    For a 3D tensor with dim=0, this performs:
+        output[index[i][j][k]][j][k] = src[i][j][k]
+    """
+    return max_ops.scatter(input, src, index, axis=dim)
+
+
 # scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor
 @map_to(aten.scatter.value)
 def aten_scatter_value(
