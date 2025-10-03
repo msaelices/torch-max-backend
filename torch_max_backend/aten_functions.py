@@ -2211,6 +2211,9 @@ def aten_scatter_src(
 
     For a 3D tensor with dim=0, this performs:
         output[index[i][j][k]][j][k] = src[i][j][k]
+
+    For a 3D tensor with dim=1, this performs:
+        output[i][index[i][j][k]][k] = src[i][j][k]
     """
     return max_ops.scatter(input, src, index, axis=dim)
 
@@ -2224,6 +2227,9 @@ def aten_scatter_value(
 
     For a 3D tensor with dim=0, this performs:
         output[index[i][j][k]][j][k] = value
+
+    For a 3D tensor with dim=1, this performs:
+        output[i][index[i][j][k]][k] = value
     """
     # Broadcast the scalar value to match the index shape
     # We need to create a tensor filled with the value in the same shape as index
