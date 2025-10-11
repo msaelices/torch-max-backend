@@ -204,6 +204,80 @@ def test_native_batch_norm_legit_no_training_2d_input(device: str):
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_acos_basic(device: str, dtype: torch.dtype):
+    """Test aten.acos basic functionality with values in valid domain [-1, 1]"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test with values in valid domain [-1, 1]
+    x = torch.tensor([-1.0, -0.5, 0.0, 0.5, 1.0], dtype=dtype, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_aten_acos_special_values(device: str, dtype: torch.dtype):
+    """Test aten.acos with special mathematical values"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test known mathematical values
+    # acos(1.0) = 0.0
+    # acos(0.0) = π/2 ≈ 1.5708
+    # acos(-1.0) = π ≈ 3.1416
+    x = torch.tensor([1.0, 0.0, -1.0], dtype=dtype, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_2d_tensor(device: str):
+    """Test aten.acos with 2D tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    x = torch.tensor(
+        [[-1.0, -0.5], [0.0, 0.5], [0.8, 1.0]], dtype=torch.float32, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_3d_tensor(device: str):
+    """Test aten.acos with 3D tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Random values in [-1, 1] range
+    x = torch.rand(2, 3, 4, dtype=torch.float32, device=device) * 2 - 1
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_edge_domain_values(device: str):
+    """Test aten.acos with values near domain boundaries"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test values very close to -1 and 1
+    x = torch.tensor([-0.999, -0.99, 0.99, 0.999], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_single_element(device: str):
+    """Test aten.acos with single element tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    x = torch.tensor([0.5], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 def test_aten_amax_all_dims(device: str, dtype: torch.dtype):
     """Test aten_amax with default empty dim list (reduces over all dimensions)"""
     # Skip float16 on CPU as MAX doesn't support f16 on CPU
