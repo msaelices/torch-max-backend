@@ -1188,8 +1188,11 @@ def test_aten_ceil_scalar_tensor(device: str):
     check_functions_are_equivalent(fn, device, [x])
 
 
+TRIGON_FUNCTIONS = [aten.asinh, aten.cosh, aten.sinh, aten.tanh]
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_basic(device: str, fn: Callable, dtype: torch.dtype):
     """Test trigonometric functions basic functionality with floating point numbers"""
     # Skip float16 on CPU as MAX doesn't support f16 on CPU
@@ -1202,7 +1205,7 @@ def test_aten_trigon_basic(device: str, fn: Callable, dtype: torch.dtype):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_2d_tensor(device: str, fn: Callable):
     """Test trigonometric functions with 2D tensor"""
 
@@ -1212,7 +1215,7 @@ def test_aten_trigon_2d_tensor(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_3d_tensor(device: str, fn: Callable):
     """Test trigonometric functions with 3D tensor"""
 
@@ -1220,7 +1223,7 @@ def test_aten_trigon_3d_tensor(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_large_values(device: str, fn: Callable):
     """Test trigonometric functions with large values (may approach infinity)"""
 
@@ -1229,7 +1232,7 @@ def test_aten_trigon_large_values(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_small_values(device: str, fn: Callable):
     """Test trigonometric functions with small values near zero"""
 
@@ -1240,7 +1243,7 @@ def test_aten_trigon_small_values(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_single_element(device: str, fn: Callable):
     """Test trigonometric functions with single element tensor"""
 
@@ -1248,7 +1251,7 @@ def test_aten_trigon_single_element(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_scalar_tensor(device: str, fn: Callable):
     """Test trigonometric functions with scalar tensor"""
 
