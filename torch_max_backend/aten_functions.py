@@ -941,7 +941,15 @@ def aten_argmin(
 
 # as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)
 # asin(Tensor self) -> Tensor
+
+
 # asinh(Tensor self) -> Tensor
+@map_to(aten.asinh)
+def aten_asinh(x: TensorValue) -> TensorValue:
+    """Computes inverse hyperbolic sine using asinh(x) = log(x + sqrt(x² + 1))"""
+    return max_ops.log(x + max_ops.sqrt(x * x + 1))
+
+
 # atan(Tensor self) -> Tensor
 # atan2(Tensor self, Tensor other) -> Tensor
 # atan2.out(Tensor self, Tensor other, *, Tensor(a!) out) -> Tensor(a!)
