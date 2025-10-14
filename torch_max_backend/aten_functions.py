@@ -550,6 +550,75 @@ def aten_abs(x: TensorValue):
 
 
 # acos(Tensor self) -> Tensor
+@map_to(aten.acos)
+def aten_acos(x: TensorValue) -> TensorValue:
+    """Computes the arccosine (inverse cosine) of the input tensor.
+
+    Returns values in the range [0, π] for inputs in [-1, 1].
+    Uses polynomial approximation based on the Mojo stdlib implementation.
+
+    Args:
+        x: Input tensor with values in [-1, 1]
+
+    Returns:
+        Arccosine of the input in radians [0, π]
+    """
+    # Create constants as tensors for use in max_ops.where()
+    zero = max_ops.constant(0.0, dtype=x.dtype, device=x.device)
+    one = max_ops.constant(1.0, dtype=x.dtype, device=x.device)
+    neg_one = max_ops.constant(-1.0, dtype=x.dtype, device=x.device)
+
+    # Clamp input to valid domain [-1, 1]
+    x_clamped = max_ops.max(max_ops.min(x, 1.0), -1.0)
+    x_abs = max_ops.abs(x_clamped)
+
+    # Domain split at 0.5
+    small_domain = x_abs < 0.5
+
+    # Compute x_squared and d based on domain
+    # Small domain: x_squared = x², d = |x|
+    # Large domain: x_squared = (1 - |x|) / 2, d = sqrt(x_squared)
+    x_squared_small = x_clamped * x_clamped
+    x_squared_large = (1.0 - x_abs) * 0.5
+    x_squared = max_ops.where(small_domain, x_squared_small, x_squared_large)
+
+    d_small = x_abs
+    d_large = max_ops.sqrt(x_squared_large)
+    d = max_ops.where(small_domain, d_small, d_large)
+
+    # Handle special case |x| = 1 (d should be 0)
+    is_one = x_abs >= 1.0
+    d = max_ops.where(is_one, zero, d)
+
+    # Polynomial evaluation using Horner's method
+    # Coefficients from Mojo stdlib (Remez approximation)
+    poly = 0.4197454825e-1
+    poly = poly * x_squared + 0.2424046025e-1
+    poly = poly * x_squared + 0.4547423869e-1
+    poly = poly * x_squared + 0.7495029271e-1
+    poly = poly * x_squared + 0.1666677296
+    poly = poly * x_squared * d
+
+    # Small domain: π/2 - (d + poly) with sign preservation
+    # copysign(d, x) is implemented as d * sign(x)
+    is_negative = x_clamped < 0.0
+    sign_x = max_ops.where(is_negative, neg_one, one)
+    d_signed = d * sign_x
+    poly_signed = poly * sign_x
+    result_small = (math.pi * 0.5) - (d_signed + poly_signed)
+
+    # Large domain: 2 * (d + poly)
+    result_large = 2.0 * (d + poly)
+
+    # For large domain with negative x: π - result
+    result_large = max_ops.where(is_negative, math.pi - result_large, result_large)
+
+    # Select based on domain
+    result = max_ops.where(small_domain, result_small, result_large)
+
+    return result
+
+
 # acosh(Tensor self) -> Tensor
 # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
 
@@ -872,7 +941,15 @@ def aten_argmin(
 
 # as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)
 # asin(Tensor self) -> Tensor
+
+
 # asinh(Tensor self) -> Tensor
+@map_to(aten.asinh)
+def aten_asinh(x: TensorValue) -> TensorValue:
+    """Computes inverse hyperbolic sine using asinh(x) = log(x + sqrt(x² + 1))"""
+    return max_ops.log(x + max_ops.sqrt(x * x + 1))
+
+
 # atan(Tensor self) -> Tensor
 # atan2(Tensor self, Tensor other) -> Tensor
 # atan2.out(Tensor self, Tensor other, *, Tensor(a!) out) -> Tensor(a!)
@@ -2203,7 +2280,42 @@ def aten_scalar_tensor(
 
 
 # scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
+@map_to(aten.scatter.src)
+def aten_scatter_src(
+    input: TensorValue, dim: int, index: TensorValue, src: TensorValue
+) -> TensorValue:
+    """Scatters values from src tensor into input at positions specified by index along dimension dim.
+
+    For a 3D tensor with dim=0, this performs:
+        output[index[i][j][k]][j][k] = src[i][j][k]
+
+    For a 3D tensor with dim=1, this performs:
+        output[i][index[i][j][k]][k] = src[i][j][k]
+    """
+    return max_ops.scatter(input, src, index, axis=dim)
+
+
 # scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor
+@map_to(aten.scatter.value)
+def aten_scatter_value(
+    input: TensorValue, dim: int, index: TensorValue, value: Scalar
+) -> TensorValue:
+    """Scatters a scalar value into input tensor at positions specified by index along dimension dim.
+
+    For a 3D tensor with dim=0, this performs:
+        output[index[i][j][k]][j][k] = value
+
+    For a 3D tensor with dim=1, this performs:
+        output[i][index[i][j][k]][k] = value
+    """
+    # Broadcast the scalar value to match the index shape
+    # We need to create a tensor filled with the value in the same shape as index
+    updates = max_ops.broadcast_to(
+        max_ops.constant(value, dtype=input.dtype, device=input.device), index.shape
+    )
+    return max_ops.scatter(input, updates, index, axis=dim)
+
+
 # scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
 # scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor
 

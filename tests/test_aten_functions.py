@@ -204,6 +204,80 @@ def test_native_batch_norm_legit_no_training_2d_input(device: str):
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_acos_basic(device: str, dtype: torch.dtype):
+    """Test aten.acos basic functionality with values in valid domain [-1, 1]"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test with values in valid domain [-1, 1]
+    x = torch.tensor([-1.0, -0.5, 0.0, 0.5, 1.0], dtype=dtype, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_aten_acos_special_values(device: str, dtype: torch.dtype):
+    """Test aten.acos with special mathematical values"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test known mathematical values
+    # acos(1.0) = 0.0
+    # acos(0.0) = π/2 ≈ 1.5708
+    # acos(-1.0) = π ≈ 3.1416
+    x = torch.tensor([1.0, 0.0, -1.0], dtype=dtype, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_2d_tensor(device: str):
+    """Test aten.acos with 2D tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    x = torch.tensor(
+        [[-1.0, -0.5], [0.0, 0.5], [0.8, 1.0]], dtype=torch.float32, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_3d_tensor(device: str):
+    """Test aten.acos with 3D tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Random values in [-1, 1] range
+    x = torch.rand(2, 3, 4, dtype=torch.float32, device=device) * 2 - 1
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_edge_domain_values(device: str):
+    """Test aten.acos with values near domain boundaries"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    # Test values very close to -1 and 1
+    x = torch.tensor([-0.999, -0.99, 0.99, 0.999], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_aten_acos_single_element(device: str):
+    """Test aten.acos with single element tensor"""
+
+    def fn(x):
+        return aten.acos(x)
+
+    x = torch.tensor([0.5], dtype=torch.float32, device=device)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 def test_aten_amax_all_dims(device: str, dtype: torch.dtype):
     """Test aten_amax with default empty dim list (reduces over all dimensions)"""
     # Skip float16 on CPU as MAX doesn't support f16 on CPU
@@ -1114,8 +1188,11 @@ def test_aten_ceil_scalar_tensor(device: str):
     check_functions_are_equivalent(fn, device, [x])
 
 
+TRIGON_FUNCTIONS = [aten.asinh, aten.cosh, aten.sinh, aten.tanh]
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_basic(device: str, fn: Callable, dtype: torch.dtype):
     """Test trigonometric functions basic functionality with floating point numbers"""
     # Skip float16 on CPU as MAX doesn't support f16 on CPU
@@ -1128,7 +1205,7 @@ def test_aten_trigon_basic(device: str, fn: Callable, dtype: torch.dtype):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_2d_tensor(device: str, fn: Callable):
     """Test trigonometric functions with 2D tensor"""
 
@@ -1138,7 +1215,7 @@ def test_aten_trigon_2d_tensor(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_3d_tensor(device: str, fn: Callable):
     """Test trigonometric functions with 3D tensor"""
 
@@ -1146,7 +1223,7 @@ def test_aten_trigon_3d_tensor(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_large_values(device: str, fn: Callable):
     """Test trigonometric functions with large values (may approach infinity)"""
 
@@ -1155,7 +1232,7 @@ def test_aten_trigon_large_values(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_small_values(device: str, fn: Callable):
     """Test trigonometric functions with small values near zero"""
 
@@ -1166,7 +1243,7 @@ def test_aten_trigon_small_values(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_single_element(device: str, fn: Callable):
     """Test trigonometric functions with single element tensor"""
 
@@ -1174,7 +1251,7 @@ def test_aten_trigon_single_element(device: str, fn: Callable):
     check_functions_are_equivalent(fn, device, [x])
 
 
-@pytest.mark.parametrize("fn", [aten.cosh, aten.sinh, aten.tanh])
+@pytest.mark.parametrize("fn", TRIGON_FUNCTIONS)
 def test_aten_trigon_scalar_tensor(device: str, fn: Callable):
     """Test trigonometric functions with scalar tensor"""
 
@@ -1333,6 +1410,146 @@ def test_aten_repeat_interleave_large_repeats(device: str):
 
     x = torch.randn(2, 3, device=device)
     check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_aten_scatter_src_basic_2d(device: str, dtype: torch.dtype):
+    """Test aten.scatter.src basic functionality with 2D tensors"""
+
+    def fn(self, index, src):
+        return aten.scatter.src(self, dim=1, index=index, src=src)
+
+    # Basic 2D scatter along dim=1
+    self = torch.zeros(3, 5, dtype=dtype, device=device)
+    src = torch.ones(3, 2, dtype=dtype, device=device)
+    index = torch.tensor([[0, 2], [1, 4], [3, 0]], dtype=torch.long, device=device)
+
+    check_functions_are_equivalent(fn, device, [self, index, src])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.int32, torch.int64])
+def test_aten_scatter_src_dim0(device: str, dtype: torch.dtype):
+    """Test aten.scatter.src along dimension 0"""
+
+    def fn(self, index, src):
+        return aten.scatter.src(self, dim=0, index=index, src=src)
+
+    # Scatter along dim=0
+    self = torch.zeros(4, 4, dtype=dtype, device=device)
+    src = torch.ones(2, 4, dtype=dtype, device=device) * 5
+    index = torch.tensor([[1, 0, 2, 3], [2, 1, 3, 0]], dtype=torch.long, device=device)
+
+    check_functions_are_equivalent(fn, device, [self, index, src])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_scatter_src_3d_tensor(device: str, dtype: torch.dtype):
+    """Test aten.scatter.src with 3D tensor"""
+    if device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(self, index, src):
+        return aten.scatter.src(self, dim=1, index=index, src=src)
+
+    # 3D scatter along middle dimension
+    self = torch.zeros(2, 4, 3, dtype=dtype, device=device)
+    src = torch.randn(2, 2, 3, dtype=dtype, device=device)
+    index = torch.tensor(
+        [[[0, 2, 1], [3, 1, 2]], [[2, 0, 3], [1, 3, 0]]],
+        dtype=torch.long,
+        device=device,
+    )
+
+    check_functions_are_equivalent(fn, device, [self, index, src])
+
+
+def test_aten_scatter_src_negative_dim(device: str):
+    """Test aten.scatter.src with negative dimension"""
+
+    def fn(self, index, src):
+        return aten.scatter.src(self, dim=-1, index=index, src=src)
+
+    # Negative dimension indexing (dim=-1 is last dimension)
+    self = torch.zeros(3, 4, dtype=torch.float32, device=device)
+    src = torch.ones(3, 2, dtype=torch.float32, device=device) * 2
+    index = torch.tensor([[0, 3], [1, 2], [2, 1]], dtype=torch.long, device=device)
+
+    check_functions_are_equivalent(fn, device, [self, index, src])
+
+
+def test_aten_scatter_value_basic(device: str):
+    """Test aten.scatter.value with scalar value - basic functionality"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 0, index, 1.0)
+
+    # Create base tensor of zeros
+    x = torch.zeros(3, 5, device=device)
+    # Indices where we want to write along dimension 0
+    index = torch.tensor(
+        [[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]], dtype=torch.long, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_diagonal(device: str):
+    """Test aten.scatter.value with scalar value - create diagonal pattern"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 0, index, 5.0)
+
+    x = torch.zeros(3, 3, device=device)
+    index = torch.tensor([[0, 1, 2]], dtype=torch.long, device=device)
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+@pytest.mark.parametrize(
+    "dtype", [torch.float32, torch.float64, torch.int32, torch.int64]
+)
+def test_aten_scatter_value_dtypes(device: str, dtype: torch.dtype):
+    """Test aten.scatter.value with scalar value - different dtypes"""
+
+    def fn(x, index):
+        if dtype in [torch.int32, torch.int64]:
+            return aten.scatter.value(x, 0, index, 7)
+        else:
+            return aten.scatter.value(x, 0, index, 3.5)
+
+    if dtype in [torch.int32, torch.int64]:
+        x = torch.zeros(4, 4, dtype=dtype, device=device)
+    else:
+        x = torch.zeros(4, 4, dtype=dtype, device=device)
+
+    index = torch.tensor([[0, 1, 2, 3]], dtype=torch.long, device=device)
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_dim1(device: str):
+    """Test aten.scatter.value with scalar value along dimension 1"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 1, index, 2.5)
+
+    x = torch.zeros(3, 5, device=device)
+    index = torch.tensor(
+        [[0, 2, 4], [1, 3, 4], [0, 1, 2]], dtype=torch.long, device=device
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
+
+
+def test_aten_scatter_value_3d(device: str):
+    """Test aten.scatter.value with scalar value on 3D tensor"""
+
+    def fn(x, index):
+        return aten.scatter.value(x, 1, index, 9.0)
+
+    x = torch.zeros(2, 3, 4, device=device)
+    index = torch.tensor(
+        [[[0, 1, 2, 0], [1, 2, 0, 1]], [[2, 0, 1, 2], [0, 1, 2, 1]]],
+        dtype=torch.long,
+        device=device,
+    )
+    check_functions_are_equivalent(fn, device, [x, index])
 
 
 def test_aten_split_with_sizes_basic(device: str):
