@@ -7,6 +7,24 @@ description: Guide for implementing and reviewing PyTorch ATen operations in the
 
 This skill provides comprehensive guidance for implementing PyTorch ATen operations using Modular's MAX framework in the torch-max-backend project.
 
+## Using This Skill
+
+Reference the skill in your prompts:
+
+```
+Use the aten-ops skill to help me implement aten::relu
+```
+
+```
+What pattern should I use for a reduction operation? Use the aten-ops skill.
+```
+
+The skill provides:
+- **8-step TDD workflow**: Complete test-driven development process
+- **Implementation patterns**: Templates for all operation types in `assets/`
+- **Testing strategies**: Comprehensive testing guide in `references/`
+- **Type hints guidance**: Beartype method for finding correct types
+
 ## Overview
 
 ATen (A Tensor Library) is PyTorch's foundational tensor operation library. This skill guides you through the complete workflow of adding support for ATen operations in the MAX backend using test-driven development.
@@ -607,5 +625,37 @@ Before considering an ATen operation complete:
 - [ ] Tested edge cases (empty tensors, broadcasting, etc.)
 - [ ] Linter passes (`uvx pre-commit run --all-files`)
 - [ ] Code is in alphabetical order in `aten_functions.py`
+
+## Resources
+
+### Within This Skill
+- **Implementation templates**: `assets/operation_template.py` - 12+ implementation patterns
+- **Test templates**: `assets/test_template.py` - 15+ test patterns
+- **Testing guide**: `references/testing_guide.md` - Comprehensive testing strategies
+- **Common patterns**: `references/common_patterns.md` - All operation categories with examples
+
+### Commands Reference
+
+**Testing**:
+```bash
+uv run pytest tests/test_aten_functions.py::test_aten_op -v  # Run specific test
+uv run pytest tests/test_aten_functions.py::test_aten_op -v -k "float32"  # Filter by dtype
+TORCH_MAX_BACKEND_VERBOSE=1 uv run pytest tests/test_aten_functions.py::test_aten_op -v  # Debug
+```
+
+**Linting**:
+```bash
+uvx pre-commit run --all-files  # Always run before committing
+```
+
+### Integration with mojo-gpu-kernels Skill
+
+For custom kernel implementation:
+```
+Use the mojo-gpu-kernels skill to find MAX operations for [operation]
+```
+```
+Use the mojo-gpu-kernels skill to write a custom kernel for [operation]
+```
 
 For detailed workflow documentation and examples, see the reference files in this skill.

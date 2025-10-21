@@ -7,6 +7,24 @@ description: Guide for writing efficient GPU kernels in Mojo using the MAX frame
 
 This skill provides comprehensive guidance for writing GPU kernels in Mojo using Modular's MAX framework, with specific focus on integration with the PyTorch backend.
 
+## Using This Skill
+
+Reference the skill in your prompts:
+
+```
+Use the mojo-gpu-kernels skill to help me implement a custom activation function.
+```
+
+```
+I need to write a GPU kernel for matrix transpose. Use the mojo-gpu-kernels skill.
+```
+
+The skill provides:
+- **Kernel patterns**: Element-wise, reductions, shared memory operations
+- **Code templates**: Ready-to-use templates in `assets/` directory
+- **Detailed references**: In-depth guides in `references/` directory
+- **MAX operations catalog**: Complete reference of available MAX operations
+
 ## Core Concepts
 
 ### MAX GPU Kernel Architecture
@@ -526,20 +544,35 @@ def test_operation(dtype, shape):
 
 ## Quick Reference
 
-**Template selection**:
-- Element-wise: Use `assets/elementwise_template.mojo`
-- Warp reduction: Use `assets/warp_reduction_template.mojo`
-- Block reduction: Use `assets/block_reduction_template.mojo`
-- Stencil: Use `assets/stencil_template.mojo`
+### Template Selection
+- Element-wise: `assets/elementwise_template.mojo`
+- Reduction: `assets/reduction_template.mojo`
+- Activations: `assets/activation_templates.mojo`
 
-**Common calculations**:
+### Reference Documentation
+- Element-wise patterns: `references/elementwise_patterns.md`
+- Reduction patterns: `references/reduction_patterns.md`
+- Shared memory patterns: `references/shared_memory_patterns.md`
+- MAX operations: `references/max_operations.md`
+
+### Common Calculations
 - Grid dimension: `ceildiv(total_elements, block_size)`
-- Thread index: `global_idx.x` or `block_idx.x * block_dim.x + thread_idx.x`
+- Thread index: `global_idx.x`
 - Warp index: `thread_idx.x // UInt(WARP_SIZE)`
 - Lane index: `lane_id()`
 
-**Synchronization**:
+### Synchronization
 - Block-level: `barrier()`
-- Warp-level: `syncwarp()` (implicit in warp primitives)
+- Warp-level: Implicit in warp primitives (`warp.sum()`, etc.)
 
-For detailed examples and complete implementations, consult the reference files and template assets provided with this skill.
+### Pattern Selection Guide
+
+**Use element-wise when**: Each output depends only on corresponding input(s), no thread communication needed
+
+**Use warp reduction when**: Reducing ≤32 elements, need very fast reduction
+
+**Use block reduction when**: Reducing ≤1024 elements, can use shared memory
+
+**Use shared memory when**: Need neighbor access (stencils), data reuse opportunities
+
+For detailed examples and complete implementations, consult the reference files and template assets.
