@@ -2331,3 +2331,47 @@ def test_max_pool2d_error_message_not_supported_in_graph(device: str):
         match="The implementation of aten.max_pool2d_with_indices doesn't support returning indices yet.",
     ):
         check_functions_are_equivalent(fn, device, [x])
+
+
+# aten._log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+@pytest.mark.parametrize("dtype", [torch.float32])
+@pytest.mark.parametrize("dim", [-1])
+def test_log_softmax_basic(device: str, dtype: torch.dtype, dim: int):
+    """Test _log_softmax basic functionality.
+
+    Note: Currently only testing CPU and limited CUDA configs due to MAX GPU reduction
+    limitations with certain dtypes (float64, float16, bfloat16) and dimensions.
+    """
+
+    def fn(x):
+        return aten._log_softmax(x, dim, False)
+
+    x = torch.randn(3, 4, 5, dtype=dtype)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_log_softmax_cpu_all_dtypes(device: str):
+    """Test _log_softmax with various dtypes on CPU."""
+    if device != "cpu":
+        pytest.skip("This test is CPU-only")
+
+    for dtype in [torch.float32, torch.float64]:
+
+        def fn(x):
+            return aten._log_softmax(x, -1, False)
+
+        x = torch.randn(3, 4, 5, dtype=dtype)
+        check_functions_are_equivalent(fn, device, [x])
+
+
+def test_log_softmax_numerical_stability(device: str):
+    """Test _log_softmax with large values to verify numerical stability."""
+    if device != "cpu":
+        pytest.skip("Limiting to CPU due to MAX GPU reduction constraints")
+
+    def fn(x):
+        return aten._log_softmax(x, -1, False)
+
+    # Create tensor with large values that could cause overflow without max subtraction
+    x = torch.randn(2, 3, dtype=torch.float32) * 100
+    check_functions_are_equivalent(fn, device, [x])

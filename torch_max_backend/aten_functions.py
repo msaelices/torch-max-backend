@@ -530,6 +530,57 @@ def aten_softmax(input, dim=-1, dtype=None):
     return x_exp / x_sum
 
 
+# aten._log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+@map_to(aten._log_softmax)
+def aten__log_softmax(input: MaxTensor, dim: int, half_to_float: bool) -> MaxTensor:
+    """Compute log(softmax(x)) in a numerically stable way.
+
+    Formula: log_softmax(x) = x - max(x) - log(sum(exp(x - max(x))))
+
+    This is more numerically stable than computing log(softmax(x)) directly,
+    as it prevents overflow from exp(large_values) and underflow from log(small_values).
+
+    Based on PyTorch's implementation:
+    pytorch/aten/src/ATen/native/SoftMax.cpp (TORCH_META_FUNC(_log_softmax))
+    pytorch/aten/src/ATen/native/cuda/SoftMax.cu (log_softmax_cuda_out)
+
+    Args:
+        input: Input tensor
+        dim: Dimension along which to compute log_softmax
+        half_to_float: If True, convert FP16 to FP32 for computation (GPU only, ignored on CPU)
+
+    Returns:
+        Log-softmax of input along the specified dimension
+    """
+    # Note: half_to_float is typically used on GPU for better precision
+    # For CPU or when half_to_float=False, we compute in the input dtype
+    # MAX handles type conversions automatically, so we ignore this flag
+
+    # Handle negative dim
+    if dim < 0:
+        dim = len(input.shape) + dim
+
+    # Compute max along the specified axis for numerical stability, keeping dimensions
+    x_max = aten_amax(input, dim=[dim], keepdim=True)
+
+    # Subtract max for numerical stability: x - max(x)
+    x_shifted = input - x_max
+
+    # Compute exp(x - max(x))
+    x_exp = F.exp(x_shifted)
+
+    # Sum exponentials along the axis, keeping dimensions for broadcasting
+    x_sum = aten_sum(x_exp, dim=[dim], keepdim=True)
+
+    # Compute log(sum(exp(x - max(x))))
+    log_sum = F.log(x_sum)
+
+    # Return: (x - max(x)) - log(sum(exp(x - max(x))))
+    # This equals: log(exp(x - max) / sum(exp(x - max)))
+    #            = log(softmax(x))
+    return x_shifted - log_sum
+
+
 # _to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor
 @map_to(aten._to_copy)
 def aten__to_copy(
