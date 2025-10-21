@@ -16,6 +16,28 @@ Mojo GPU kernels are functions that execute on GPU devices via the MAX framework
 - Leverage compile-time parameters for type safety and specialization
 - Employ explicit address space annotations for memory types
 - Integrate with DeviceContext for memory management and kernel launches
+- **Use LayoutTensor for tensor operations** - This is the preferred high-level abstraction in MAX
+- Use UnsafePointer for low-level kernel implementations when needed
+
+### Working with Tensors
+
+**Important**: When implementing ATen operations, prioritize using `LayoutTensor` over raw pointers:
+
+- **LayoutTensor**: High-level tensor abstraction with layout information (preferred for most operations)
+- **UnsafePointer**: Low-level pointer for custom kernels (use when LayoutTensor doesn't fit)
+- **DeviceBuffer**: For managing GPU memory allocations
+- **NDBuffer**: Deprecated - do not use
+
+Example with LayoutTensor:
+```mojo
+fn operation[dtype: DType](
+    input: LayoutTensor[dtype],
+    ctx: DeviceContext
+) -> LayoutTensor[dtype]:
+    # LayoutTensor provides shape, strides, and layout information
+    # Use MAX operations that accept LayoutTensor when possible
+    return max_ops.operation(input)
+```
 
 ### Development Workflow
 
@@ -54,7 +76,6 @@ import gpu.warp as warp
 ```mojo
 from layout import Layout, LayoutTensor, RuntimeLayout
 from memory import stack_allocation
-from buffer import NDBuffer
 ```
 
 ### Algorithms and Reductions
@@ -480,19 +501,21 @@ def test_operation(dtype, shape):
 
 ## Best Practices
 
-1. **Always bounds-check**: Start kernels with `if tid >= UInt(size): return`
-2. **Use compile-time parameters**: `@parameter` for dtype, simd_width enables specialization
-3. **Prefer warp primitives**: Use `warp.sum()` over manual reduction when possible
-4. **Synchronize correctly**: Call `barrier()` after shared memory writes before reads
-5. **Vectorize on CPU**: Use `vectorize[]` for CPU-like patterns
-6. **Check alignment**: Use `align_of[]` for proper memory alignment
-7. **Manage context lifetime**: Always use `with DeviceContext() as ctx:`
-8. **Type hint accurately**: Use beartype feedback to find correct types
-9. **Test thoroughly**: Parametrize tests across dtypes and shapes
-10. **Lint before commit**: Run `uvx pre-commit run --all-files`
+1. **Prioritize LayoutTensor**: Use `LayoutTensor[dtype]` for tensor operations instead of raw pointers or deprecated NDBuffer
+2. **Always bounds-check**: Start kernels with `if tid >= UInt(size): return`
+3. **Use compile-time parameters**: `@parameter` for dtype, simd_width enables specialization
+4. **Prefer warp primitives**: Use `warp.sum()` over manual reduction when possible
+5. **Synchronize correctly**: Call `barrier()` after shared memory writes before reads
+6. **Vectorize on CPU**: Use `vectorize[]` for CPU-like patterns
+7. **Check alignment**: Use `align_of[]` for proper memory alignment
+8. **Manage context lifetime**: Always use `with DeviceContext() as ctx:`
+9. **Type hint accurately**: Use beartype feedback to find correct types
+10. **Test thoroughly**: Parametrize tests across dtypes and shapes
+11. **Lint before commit**: Run `uvx pre-commit run --all-files`
 
 ## Common Pitfalls
 
+- **Using deprecated NDBuffer**: Use LayoutTensor instead for tensor operations
 - **Missing synchronization**: Forgetting `barrier()` after shared memory writes
 - **Incorrect grid/block sizing**: Not using `ceildiv()` for grid dimension
 - **Type mismatches**: Not casting between accumulation type and output type
