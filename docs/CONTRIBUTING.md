@@ -91,9 +91,28 @@ For comprehensive usage instructions, example prompts, and detailed guides:
 
 📚 **[Mojo GPU Kernels Skill Usage Guide](../.claude/skills/mojo-gpu-kernels/USAGE.md)**
 
+## Using the ATen Operations Skill
+
+The project includes a comprehensive **ATen Operations Skill** that guides you through implementing PyTorch ATen operations.
+
+### Quick Start with the Skill
+
+```
+Use the aten-ops skill to help me implement aten::relu
+```
+
+The skill provides:
+- **8-step workflow**: Complete test-driven development process
+- **Implementation patterns**: Ready-to-use code templates for all operation types
+- **Testing strategies**: Parametrized tests for multiple dtypes and shapes
+- **Type hints guidance**: Beartype method for finding correct types
+- **MAX operation discovery**: Integration with mojo-gpu-kernels skill
+
+**📚 Full documentation**: [ATen Operations Skill](../.claude/skills/aten-ops/README.md)
+
 ## Adding Support for New Operations
 
-We use **test-driven development** to add support for new PyTorch operations. Follow these steps:
+We use **test-driven development** to add support for new PyTorch operations. Follow these steps (or use the aten-ops skill for guided assistance):
 
 ### Step 1: Research the Operation
 
@@ -144,6 +163,18 @@ When there is no MAX alternative, the best alternative would be to migrate to Mo
 ### Step 6: Implement the Operation
 
 Write the ATen operation implementation using MAX functions.
+
+**💡 Tip**: Use the **aten-ops skill** for implementation patterns:
+```
+Use the aten-ops skill to show me the implementation pattern for [operation type]
+```
+
+The skill provides templates for:
+- Element-wise operations
+- Reductions
+- Shape manipulation
+- Linear algebra
+- Tensor combination
 
 This is an example of currently implemented `aten.cat()` operation:
 ```python
