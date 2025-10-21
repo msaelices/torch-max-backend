@@ -49,6 +49,48 @@ We maintain high code quality using several tools:
 - **Beartype**: Runtime type checking
 - **Pre-commit**: Automated code quality checks
 
+### Using the Mojo GPU Kernels Skill
+
+The project includes a comprehensive **Mojo GPU Kernels Skill** to accelerate GPU kernel development for the PyTorch backend.
+
+#### What the Skill Provides
+
+- **Kernel patterns**: Element-wise operations, reductions (warp/block/multi-block), shared memory operations
+- **Code templates**: Ready-to-use starter code for common kernel types
+- **MAX operations catalog**: Comprehensive reference of available MAX framework operations
+- **Performance guidance**: Memory coalescing, occupancy optimization, bank conflict avoidance
+- **Workflow integration**: Specific guidance for torch-max-backend development process
+
+#### Quick Start with the Skill
+
+When working with Claude Code, simply reference the skill in your prompts:
+
+```
+Use the mojo-gpu-kernels skill to help me implement the aten::relu operation.
+```
+
+```
+I need to write a reduction kernel for sum. Use the mojo-gpu-kernels skill to show me the best pattern.
+```
+
+```
+How do I optimize this kernel for better memory coalescing? Use the mojo-gpu-kernels skill.
+```
+
+#### When to Use the Skill
+
+**The skill helps with:**
+- Implementing new ATen operations that require custom kernels
+- Writing GPU kernels in Mojo or optimizing existing ones
+- Finding the right kernel pattern (element-wise, reduction, shared memory)
+- Implementation with proper type hints and error handling
+
+#### Full Documentation
+
+For comprehensive usage instructions, example prompts, and detailed guides:
+
+📚 **[Mojo GPU Kernels Skill Usage Guide](../.claude/skills/mojo-gpu-kernels/USAGE.md)**
+
 ## Adding Support for New Operations
 
 We use **test-driven development** to add support for new PyTorch operations. Follow these steps:
@@ -88,9 +130,16 @@ Check the [Max Graph Ops](https://docs.modular.com/max/api/python/graph/ops/) av
 - Composable functions to implement the operation
 - Examples in existing MAX models
 
+**💡 Tip**: Use the **mojo-gpu-kernels skill** to quickly find MAX operations:
+```
+Use the mojo-gpu-kernels skill to find MAX operations for implementing [operation_name]
+```
+
+The skill includes a comprehensive catalog of MAX operations in its references.
+
 If there is "backward" in the name, it's likely that you'll have to implement it in Mojo and put it in the "mojo_kernels" directory. If not, it's likely MAX already have something that can do it in.
 
-When there is no MAX alternative, the best alternative would be to migrate to Mojo a C++ function, by looking for the signature in the Pytorch codebase.
+When there is no MAX alternative, the best alternative would be to migrate to Mojo a C++ function, by looking for the signature in the Pytorch codebase. **The mojo-gpu-kernels skill provides templates and patterns for writing custom Mojo kernels.**
 
 ### Step 6: Implement the Operation
 
