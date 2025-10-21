@@ -85,12 +85,6 @@ How do I optimize this kernel for better memory coalescing? Use the mojo-gpu-ker
 - Finding the right kernel pattern (element-wise, reduction, shared memory)
 - Implementation with proper type hints and error handling
 
-#### Full Documentation
-
-For comprehensive usage instructions, example prompts, and detailed guides:
-
-📚 **[Mojo GPU Kernels Skill Usage Guide](../.claude/skills/mojo-gpu-kernels/USAGE.md)**
-
 ## Using the ATen Operations Skill
 
 The project includes a comprehensive **ATen Operations Skill** that guides you through implementing PyTorch ATen operations.
@@ -107,8 +101,6 @@ The skill provides:
 - **Testing strategies**: Parametrized tests for multiple dtypes and shapes
 - **Type hints guidance**: Beartype method for finding correct types
 - **MAX operation discovery**: Integration with mojo-gpu-kernels skill
-
-**📚 Full documentation**: [ATen Operations Skill](../.claude/skills/aten-ops/README.md)
 
 ## Adding Support for New Operations
 
