@@ -1374,9 +1374,6 @@ def test_aten_convolution_backward_grouped(device: str):
     check_functions_are_equivalent(fn, device, [grad_output, input_tensor, weight])
 
 
-@pytest.mark.skip(
-    reason="convolution_backward not yet implemented - requires conv_transpose and correlation ops"
-)
 def test_aten_convolution_backward_only_input_grad(device: str):
     """Test convolution_backward computing only input gradient"""
 

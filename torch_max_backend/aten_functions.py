@@ -1316,22 +1316,108 @@ def aten_convolution_backward(
     groups: SymIntType,
     output_mask: list[bool],
 ) -> tuple[MaxTensor | None, MaxTensor | None, MaxTensor | None]:
-    # NOTE: Full implementation of convolution_backward is complex and requires:
-    # 1. grad_input: Uses conv2d_transpose, but MAX's filter layout semantics need clarification
-    # 2. grad_weight: Requires correlation operation or custom Mojo kernel
-    # 3. grad_bias: Simple sum reduction (implementable)
-    #
-    # For now, raising NotImplementedError until proper implementation with MAX operations
-    # or custom kernels can be developed and tested thoroughly.
+    """
+    Compute gradients for convolution operation.
 
-    raise NotImplementedError(
-        "convolution_backward is not yet fully implemented in the MAX backend. "
-        "This operation requires:\n"
-        "  - grad_input computation using conv2d_transpose (in progress, layout issues)\n"
-        "  - grad_weight computation using correlation or custom kernel\n"
-        "  - grad_bias computation using sum operations\n"
-        "Contributions welcome! See research in ../modular/max for conv_transpose usage."
-    )
+    Returns: (grad_input, grad_weight, grad_bias)
+    - grad_input: gradient w.r.t. input (if output_mask[0])
+    - grad_weight: gradient w.r.t. weight (if output_mask[1])
+    - grad_bias: gradient w.r.t. bias (if output_mask[2])
+
+    Reference PyTorch implementation:
+    - ../pytorch/aten/src/ATen/native/Convolution.cpp (dispatcher)
+    - ../pytorch/aten/src/ATen/native/ConvolutionMM2d.cpp (CPU)
+    - ../pytorch/aten/src/ATen/native/cudnn/Conv_v7.cpp (GPU)
+    """
+    # Only support standard (non-transposed) 2D convolution for now
+    if transposed:
+        raise NotImplementedError(
+            "Transposed convolution backward is not supported yet"
+        )
+    if any(p != 0 for p in output_padding):
+        raise NotImplementedError("Output padding in backward is not supported yet")
+    if groups != 1:
+        raise NotImplementedError("Grouped convolution backward is not supported yet")
+
+    # Normalize stride, padding, dilation to tuples
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding)
+    elif isinstance(padding, tuple | list):
+        if len(padding) == 2:
+            padding = (padding[0], padding[0], padding[1], padding[1])
+        elif len(padding) == 4:
+            padding = tuple(padding)
+        else:
+            raise ValueError(f"Unsupported padding length: {len(padding)}")
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation)
+
+    grad_input = None
+    grad_weight = None
+    grad_bias = None
+
+    # --- Compute grad_bias (simple sum reduction) ---
+    if output_mask[2] and bias_sizes is not None:
+        # grad_output shape: (N, C_out, H_out, W_out) in PyTorch NCHW format
+        # Sum across batch (dim 0), height (dim 2), and width (dim 3)
+        # Keep only channels (dim 1)
+        # MAX sum keeps dimensions, so we sum and then squeeze
+        grad_bias = max_ops.sum(grad_output, axis=0)  # [1, C_out, H, W]
+        grad_bias = max_ops.sum(grad_bias, axis=2)  # [1, C_out, 1, W]
+        grad_bias = max_ops.sum(grad_bias, axis=3)  # [1, C_out, 1, 1]
+        # Reshape to [C_out]
+        grad_bias = grad_bias.reshape([bias_sizes[0]])
+
+    # --- Compute grad_input using conv2d_transpose ---
+    if output_mask[0]:
+        # Convert grad_output from NCHW to NHWC for MAX
+        grad_output_nhwc = grad_output.permute([0, 2, 3, 1])
+
+        # For conv_transpose with RSCF layout: [kernel_h, kernel_w, out_channels, in_channels]
+        # where in_channels matches the input channels and out_channels is what we produce
+        #
+        # PyTorch weight: [C_out_fwd, C_in_fwd, K_h, K_w]
+        # For backward: input to conv_transpose has C_out_fwd channels, output has C_in_fwd channels
+        # So we need: [K_h, K_w, C_in_fwd, C_out_fwd]
+        weight_rscf = weight.permute([2, 3, 1, 0])
+
+        # Compute grad_input using conv2d_transpose
+        # This effectively reverses the forward convolution
+        grad_input_nhwc = F.conv2d_transpose(
+            grad_output_nhwc,
+            weight_rscf,
+            stride=tuple(stride),
+            padding=tuple(padding),
+            dilation=tuple(dilation),
+            output_paddings=tuple(output_padding),
+            input_layout=max_type.ConvInputLayout.NHWC,
+            filter_layout=max_type.FilterLayout.RSCF,
+        )
+
+        # Convert back from NHWC to NCHW
+        grad_input = grad_input_nhwc.permute([0, 3, 1, 2])
+
+    # --- Compute grad_weight (requires correlation/im2col) ---
+    if output_mask[1]:
+        # grad_weight computation requires correlation between input and grad_output
+        # This needs either:
+        # 1. unfold/im2col operation (not available in MAX yet)
+        # 2. Custom Mojo kernel implementing the correlation
+        # 3. Composed operations using matmul and reshapes
+        #
+        # For now, we raise an error for this specific gradient
+        raise NotImplementedError(
+            "grad_weight computation in convolution_backward is not yet implemented. "
+            "This requires:\n"
+            "  - unfold/im2col operation (not available in MAX)\n"
+            "  - OR custom Mojo kernel implementing correlation\n"
+            "  - OR composed operations using matmul + reshapes\n"
+            "Note: grad_input and grad_bias are supported."
+        )
+
+    return (grad_input, grad_weight, grad_bias)
 
 
 # copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor
