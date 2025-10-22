@@ -11,26 +11,26 @@ Usage:
 4. Run: uv run pytest tests/test_aten_functions.py::test_aten_OPERATION -v
 """
 
-import torch
 import pytest
-from torch_max_backend import max_backend
+import torch
 
+from torch_max_backend import max_backend
 
 # =============================================================================
 # Basic Element-wise Operation Test
 # =============================================================================
 
-@pytest.mark.parametrize("dtype", [
-    torch.float32,
-    torch.float16,
-    torch.bfloat16,
-])
-@pytest.mark.parametrize("shape", [
-    (10,),           # 1D small
-    (1000,),         # 1D large
-    (10, 20),        # 2D
-    (5, 10, 15),     # 3D
-])
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16, torch.bfloat16])
+@pytest.mark.parametrize(
+    "shape",
+    [
+        (10,),  # 1D small
+        (1000,),  # 1D large
+        (10, 20),  # 2D
+        (5, 10, 15),  # 3D
+    ],
+)
 def test_aten_OPERATION_NAME(dtype, shape):
     """Test aten::OPERATION_NAME implementation."""
     # Create input tensor
@@ -55,14 +55,18 @@ def test_aten_OPERATION_NAME(dtype, shape):
 # Binary Operation Test with Broadcasting
 # =============================================================================
 
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
-@pytest.mark.parametrize("shapes", [
-    ((10, 20), (10, 20)),    # Same shape
-    ((10, 20), (20,)),       # Matrix + vector
-    ((5, 1, 10), (10,)),     # 3D + 1D broadcast
-    ((5, 1), (1, 10)),       # Row + column broadcast
-    ((1, 10, 20), (5, 10, 20)),  # Batch broadcast
-])
+@pytest.mark.parametrize(
+    "shapes",
+    [
+        ((10, 20), (10, 20)),  # Same shape
+        ((10, 20), (20,)),  # Matrix + vector
+        ((5, 1, 10), (10,)),  # 3D + 1D broadcast
+        ((5, 1), (1, 10)),  # Row + column broadcast
+        ((1, 10, 20), (5, 10, 20)),  # Batch broadcast
+    ],
+)
 def test_aten_OPERATION_NAME_broadcasting(dtype, shapes):
     """Test aten::OPERATION_NAME with broadcasting."""
     shape1, shape2 = shapes
@@ -86,12 +90,9 @@ def test_aten_OPERATION_NAME_broadcasting(dtype, shapes):
 # Reduction Operation Test
 # =============================================================================
 
+
 @pytest.mark.parametrize("dtype", [torch.float32])
-@pytest.mark.parametrize("shape", [
-    (10,),
-    (10, 20),
-    (5, 10, 15),
-])
+@pytest.mark.parametrize("shape", [(10,), (10, 20), (5, 10, 15)])
 @pytest.mark.parametrize("dim", [0, 1, -1])
 @pytest.mark.parametrize("keepdim", [False, True])
 def test_aten_OPERATION_NAME_reduction(dtype, shape, dim, keepdim):
@@ -118,6 +119,7 @@ def test_aten_OPERATION_NAME_reduction(dtype, shape, dim, keepdim):
 # =============================================================================
 # Optional Dimension Reduction Test
 # =============================================================================
+
 
 @pytest.mark.parametrize("dtype", [torch.float32])
 @pytest.mark.parametrize("shape", [(10,), (10, 20), (5, 10, 15)])
@@ -152,6 +154,7 @@ def test_aten_OPERATION_NAME_optional_dim(dtype, shape, dim):
 # Operation with Parameter Test
 # =============================================================================
 
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
 @pytest.mark.parametrize("shape", [(10,), (10, 20)])
 @pytest.mark.parametrize("param_value", [0.01, 0.1, 0.5, 1.0])
@@ -176,13 +179,17 @@ def test_aten_OPERATION_NAME_with_param(dtype, shape, param_value):
 # Edge Cases Test
 # =============================================================================
 
-@pytest.mark.parametrize("shape", [
-    (0,),            # Empty 1D
-    (10, 0),         # Empty dimension
-    (1,),            # Single element
-    (1, 1),          # All size-1
-    (1, 1, 1, 1),    # 4D all size-1
-])
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        (0,),  # Empty 1D
+        (10, 0),  # Empty dimension
+        (1,),  # Single element
+        (1, 1),  # All size-1
+        (1, 1, 1, 1),  # 4D all size-1
+    ],
+)
 def test_aten_OPERATION_NAME_edge_cases(shape):
     """Test aten::OPERATION_NAME edge cases."""
     dtype = torch.float32
@@ -204,6 +211,7 @@ def test_aten_OPERATION_NAME_edge_cases(shape):
 # =============================================================================
 # Concatenation Test
 # =============================================================================
+
 
 @pytest.mark.parametrize("dtype", [torch.float32])
 @pytest.mark.parametrize("num_tensors", [2, 3, 5])
@@ -236,6 +244,7 @@ def test_aten_OPERATION_NAME_concat(dtype, num_tensors, dim):
 # Numerical Stability Test
 # =============================================================================
 
+
 def test_aten_OPERATION_NAME_numerical_stability():
     """Test aten::OPERATION_NAME numerical stability."""
     # Test with large values that might cause overflow/underflow
@@ -258,6 +267,7 @@ def test_aten_OPERATION_NAME_numerical_stability():
 # =============================================================================
 # In-place Operation Test
 # =============================================================================
+
 
 def test_aten_OPERATION_NAME_inplace():
     """Test aten::OPERATION_NAME_ (in-place variant)."""
@@ -292,6 +302,7 @@ def test_aten_OPERATION_NAME_inplace():
 # Multiple Operations in Graph Test
 # =============================================================================
 
+
 def test_aten_OPERATION_NAME_in_graph():
     """Test aten::OPERATION_NAME as part of larger graph."""
     x = torch.randn(10, 20)
@@ -319,6 +330,7 @@ def test_aten_OPERATION_NAME_in_graph():
 # =============================================================================
 # Tolerance Helper for Different Dtypes
 # =============================================================================
+
 
 def get_tolerance(dtype):
     """Get appropriate tolerance for dtype."""
@@ -353,6 +365,7 @@ def test_aten_OPERATION_NAME_with_dtype_tolerance(dtype):
 # =============================================================================
 # Test Class for Grouping Related Tests
 # =============================================================================
+
 
 class TestAtenOperationNameVariants:
     """Group related tests for aten::OPERATION_NAME and variants."""
