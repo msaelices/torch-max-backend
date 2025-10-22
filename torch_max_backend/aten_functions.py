@@ -234,6 +234,54 @@ def aten__adaptive_avg_pool2d(
 # _adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
 # _cdist_forward(Tensor x1, Tensor x2, float p, int? compute_mode) -> Tensor
 # _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1) -> (Tensor, Tensor, Tensor, Tensor)
+
+
+# _euclidean_dist(Tensor x1, Tensor x2) -> Tensor
+@map_to(aten._euclidean_dist)
+def aten__euclidean_dist(x1: MaxTensor, x2: MaxTensor) -> MaxTensor:
+    """
+    Compute pairwise Euclidean distances between points in x1 and x2.
+
+    This uses the efficient matrix multiplication trick:
+    ||x1[i] - x2[j]||^2 = ||x1[i]||^2 + ||x2[j]||^2 - 2 * <x1[i], x2[j]>
+
+    Args:
+        x1: Tensor of shape (..., P, D) containing P points with D features
+        x2: Tensor of shape (..., R, D) containing R points with D features
+
+    Returns:
+        Tensor of shape (..., P, R) with pairwise Euclidean distances
+    """
+    # Step 1: Compute squared norms along last dimension
+    # F.sum keeps dimensions by default (no need for keepdim=True)
+    x1_norm = F.sum(F.pow(x1, 2), axis=-1)  # (..., P, 1)
+    x2_norm = F.sum(F.pow(x2, 2), axis=-1)  # (..., R, 1)
+
+    # Step 2: Create ones tensors with same shape as norms
+    x1_pad = F.broadcast_to(
+        F.constant(1.0, dtype=x1_norm.dtype, device=x1_norm.device), x1_norm.shape
+    )  # (..., P, 1)
+    x2_pad = F.broadcast_to(
+        F.constant(1.0, dtype=x2_norm.dtype, device=x2_norm.device), x2_norm.shape
+    )  # (..., R, 1)
+
+    # Step 3: Concatenate components along last dimension
+    # x1_: [..., -2*x1, ||x1||^2, 1]
+    # x2_: [..., x2, 1, ||x2||^2]
+    x1_ = F.concat([x1 * -2, x1_norm, x1_pad], axis=-1)  # (..., P, D+2)
+    x2_ = F.concat([x2, x2_pad, x2_norm], axis=-1)  # (..., R, D+2)
+
+    # Step 4: Matrix multiplication
+    # Result = x1_ @ x2_.T = -2*x1@x2.T + ||x1||^2 + ||x2||^2 = ||x1 - x2||^2
+    result = F.matmul(x1_, F.transpose(x2_, -2, -1))  # (..., P, R)
+
+    # Step 5: Clamp to non-negative (handle numerical errors) and take sqrt
+    result = F.max(result, F.constant(0.0, dtype=result.dtype, device=result.device))
+    result = F.sqrt(result)
+
+    return result
+
+
 # _fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor
 # _local_scalar_dense(Tensor self) -> Scalar
 # _log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor

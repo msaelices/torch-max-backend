@@ -69,6 +69,75 @@ def test_scaled_dot_product_flash_attention_with_scale(cuda_device: str, dtype):
     check_functions_are_equivalent(fn, cuda_device, [q, k, v], atol=1e-2, rtol=1e-2)
 
 
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+def test_euclidean_dist_basic(device: str, dtype: torch.dtype):
+    """Test _euclidean_dist basic pairwise distance computation"""
+
+    def fn(x1, x2):
+        return aten._euclidean_dist(x1, x2)
+
+    # x1: (P=3, D=4), x2: (R=5, D=4) -> output: (3, 5)
+    x1 = torch.randn(3, 4, dtype=dtype, device=device)
+    x2 = torch.randn(5, 4, dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x1, x2])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+def test_euclidean_dist_with_batch(device: str, dtype: torch.dtype):
+    """Test _euclidean_dist with batch dimensions"""
+
+    def fn(x1, x2):
+        return aten._euclidean_dist(x1, x2)
+
+    # x1: (B=2, P=3, D=4), x2: (B=2, R=5, D=4) -> output: (2, 3, 5)
+    x1 = torch.randn(2, 3, 4, dtype=dtype, device=device)
+    x2 = torch.randn(2, 5, 4, dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x1, x2])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_euclidean_dist_identical_points(device: str, dtype: torch.dtype):
+    """Test _euclidean_dist when points are identical (distance should be 0)"""
+
+    def fn(x1, x2):
+        return aten._euclidean_dist(x1, x2)
+
+    # Same points - distance should be exactly 0
+    x = torch.randn(4, 3, dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x, x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_euclidean_dist_different_point_counts(device: str, dtype: torch.dtype):
+    """Test _euclidean_dist with different numbers of points in x1 and x2"""
+
+    def fn(x1, x2):
+        return aten._euclidean_dist(x1, x2)
+
+    # x1: (P=10, D=8), x2: (R=3, D=8) -> output: (10, 3)
+    x1 = torch.randn(10, 8, dtype=dtype, device=device)
+    x2 = torch.randn(3, 8, dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x1, x2])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_euclidean_dist_multiple_batch_dims(device: str, dtype: torch.dtype):
+    """Test _euclidean_dist with multiple batch dimensions"""
+
+    def fn(x1, x2):
+        return aten._euclidean_dist(x1, x2)
+
+    # x1: (B1=2, B2=3, P=4, D=5), x2: (B1=2, B2=3, R=6, D=5) -> output: (2, 3, 4, 6)
+    x1 = torch.randn(2, 3, 4, 5, dtype=dtype, device=device)
+    x2 = torch.randn(2, 3, 6, 5, dtype=dtype, device=device)
+
+    check_functions_are_equivalent(fn, device, [x1, x2])
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_native_batch_norm_legit_no_training_basic(device: str, dtype: torch.dtype):
     """Test basic batch normalization inference with different dtypes"""
