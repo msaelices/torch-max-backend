@@ -1302,6 +1302,38 @@ def aten_convolution(
 
 
 # convolution_backward(Tensor grad_output, Tensor input, Tensor weight, SymInt[]? bias_sizes, SymInt[] stride, SymInt[] padding, SymInt[] dilation, bool transposed, SymInt[] output_padding, SymInt groups, bool[3] output_mask) -> (Tensor, Tensor, Tensor)
+@map_to(aten.convolution_backward)
+def aten_convolution_backward(
+    grad_output: MaxTensor,
+    input: MaxTensor,
+    weight: MaxTensor,
+    bias_sizes: list[SymIntType] | None,
+    stride: list[SymIntType],
+    padding: list[SymIntType],
+    dilation: list[SymIntType],
+    transposed: bool,
+    output_padding: list[SymIntType],
+    groups: SymIntType,
+    output_mask: list[bool],
+) -> tuple[MaxTensor | None, MaxTensor | None, MaxTensor | None]:
+    # NOTE: Full implementation of convolution_backward is complex and requires:
+    # 1. grad_input: Uses conv2d_transpose, but MAX's filter layout semantics need clarification
+    # 2. grad_weight: Requires correlation operation or custom Mojo kernel
+    # 3. grad_bias: Simple sum reduction (implementable)
+    #
+    # For now, raising NotImplementedError until proper implementation with MAX operations
+    # or custom kernels can be developed and tested thoroughly.
+
+    raise NotImplementedError(
+        "convolution_backward is not yet fully implemented in the MAX backend. "
+        "This operation requires:\n"
+        "  - grad_input computation using conv2d_transpose (in progress, layout issues)\n"
+        "  - grad_weight computation using correlation or custom kernel\n"
+        "  - grad_bias computation using sum operations\n"
+        "Contributions welcome! See research in ../modular/max for conv_transpose usage."
+    )
+
+
 # copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor
 @map_to(aten.copy)
 def aten_copy(
