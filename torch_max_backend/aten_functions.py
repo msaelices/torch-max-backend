@@ -1649,6 +1649,85 @@ def aten_gelu(
     return F.gelu(input, approximate=approximate)
 
 
+# gelu_backward(Tensor grad_output, Tensor self, *, str approximate='none') -> Tensor
+@map_to(aten.gelu_backward)
+def aten_gelu_backward(
+    grad_output: MaxTensor,
+    self: MaxTensor,
+    *,
+    approximate: Literal["tanh", "none"] = "none",
+) -> MaxTensor:
+    """
+    Computes the gradient of the GELU activation function.
+
+    Based on PyTorch C++ implementation:
+    - CUDA: pytorch/aten/src/ATen/native/cuda/ActivationGeluKernel.cu (lines 44-86)
+    - CPU: pytorch/aten/src/ATen/native/cpu/Activation.cpp (lines 345-521)
+
+    Args:
+        grad_output: Gradient flowing back from the next layer (∂L/∂y)
+        self: Original input to the forward GELU operation (x)
+        approximate: "none" for exact erf-based GELU, "tanh" for tanh approximation
+
+    Returns:
+        Gradient with respect to input (∂L/∂x)
+    """
+    if approximate == "none":
+        # Exact GELU backward using error function
+        # Formula: grad = dy * (CDF + x * PDF)
+        # where CDF = 0.5 * (1 + erf(x * M_SQRT1_2))
+        #       PDF = (M_2_SQRTPI * M_SQRT1_2 * 0.5) * exp(-0.5 * x²)
+
+        # Constants from PyTorch implementation
+        M_SQRT1_2 = 0.7071067811865476  # sqrt(1/2) = 1/sqrt(2)
+        PDF_CONSTANT = 0.39894228040143276  # M_2_SQRTPI * M_SQRT1_2 * 0.5
+
+        # Compute CDF term: 0.5 * (1 + erf(x * M_SQRT1_2))
+        cdf = 0.5 * (1.0 + max_ops.erf(self * M_SQRT1_2))
+
+        # Compute PDF term: PDF_CONSTANT * exp(-0.5 * x²)
+        x_squared = self * self
+        pdf = PDF_CONSTANT * max_ops.exp(-0.5 * x_squared)
+
+        # Gradient: grad_output * (CDF + x * PDF)
+        grad_input = grad_output * (cdf + self * pdf)
+
+    elif approximate == "tanh":
+        # Tanh approximation backward
+        # Formula: grad = dy * (left_derivative + right_derivative)
+        # See PyTorch CUDA implementation for details
+
+        # Constants from PyTorch implementation
+        kBeta = 0.7978845608028654  # sqrt(2) * sqrt(2/π) * 0.5
+        kKappa = 0.044715
+
+        # Compute inner = kBeta * (x + kKappa * x³)
+        x_squared = self * self
+        x_cubed = x_squared * self
+        inner = kBeta * (self + kKappa * x_cubed)
+        tanh_inner = max_ops.tanh(inner)
+
+        # Left term derivatives
+        left = 0.5 * self
+        right = 1.0 + tanh_inner
+        left_derivative = 0.5 * right
+
+        # Right term derivatives
+        tanh_derivative = 1.0 - tanh_inner * tanh_inner
+        inner_derivative = kBeta * (1.0 + 3.0 * kKappa * x_squared)
+        right_derivative = left * tanh_derivative * inner_derivative
+
+        # Total gradient
+        grad_input = grad_output * (left_derivative + right_derivative)
+
+    else:
+        raise ValueError(
+            f"approximate argument must be either 'none' or 'tanh', got '{approximate}'"
+        )
+
+    return grad_input
+
+
 # grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor
 
 
