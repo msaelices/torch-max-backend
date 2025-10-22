@@ -8,7 +8,12 @@ Usage:
 1. Copy this template
 2. Replace placeholders with actual operation details
 3. Follow the 8-step workflow from the aten-ops skill
+
+NOTE: This is a template file showing multiple patterns. The duplicate function
+names are intentional for demonstration purposes. Copy only the relevant pattern
+when implementing actual operations.
 """
+# ruff: noqa: F811, F821
 
 import max.graph.ops as max_ops
 from max.graph import TensorValue
