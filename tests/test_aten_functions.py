@@ -1200,7 +1200,7 @@ def test_aten_ceil_scalar_tensor(device: str):
 
 
 @pytest.mark.skip(
-    reason="convolution_backward not yet implemented - requires conv_transpose and correlation ops"
+    reason="grad_weight not yet operational - Mojo kernel created but MAX API limitations prevent compilation"
 )
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
 def test_aten_convolution_backward_2d_no_bias(device: str, dtype: torch.dtype):

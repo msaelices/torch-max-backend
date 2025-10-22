@@ -2,7 +2,9 @@
 
 import torch
 from torch.ops import aten
+
 from torch_max_backend import max_backend
+
 
 # Test grad_input only
 def test_grad_input_only():
@@ -12,8 +14,12 @@ def test_grad_input_only():
     batch_size, in_channels, height, width = 2, 3, 8, 8
     out_channels, kernel_h, kernel_w = 4, 3, 3
 
-    input_tensor = torch.randn(batch_size, in_channels, height, width, dtype=torch.float32, device='cpu')
-    weight = torch.randn(out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device='cpu')
+    input_tensor = torch.randn(
+        batch_size, in_channels, height, width, dtype=torch.float32, device="cpu"
+    )
+    weight = torch.randn(
+        out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device="cpu"
+    )
 
     # Forward pass to get grad_output shape
     output = torch.nn.functional.conv2d(input_tensor, weight, stride=1, padding=0)
@@ -24,7 +30,9 @@ def test_grad_input_only():
     # PyTorch reference
     print("\nComputing with PyTorch (eager)...")
     grad_input_ref, grad_weight_ref, grad_bias_ref = aten.convolution_backward(
-        grad_output, input_tensor, weight,
+        grad_output,
+        input_tensor,
+        weight,
         None,  # no bias
         [1, 1],  # stride
         [0, 0],  # padding
@@ -34,7 +42,9 @@ def test_grad_input_only():
         1,  # groups
         [True, False, False],  # only compute grad_input
     )
-    print(f"PyTorch grad_input shape: {grad_input_ref.shape if grad_input_ref is not None else None}")
+    print(
+        f"PyTorch grad_input shape: {grad_input_ref.shape if grad_input_ref is not None else None}"
+    )
     print(f"PyTorch grad_weight: {grad_weight_ref}")
     print(f"PyTorch grad_bias: {grad_bias_ref}")
 
@@ -44,7 +54,9 @@ def test_grad_input_only():
     @torch.compile(backend=max_backend)
     def conv_backward_grad_input(grad_out, inp, wgt):
         result = aten.convolution_backward(
-            grad_out, inp, wgt,
+            grad_out,
+            inp,
+            wgt,
             None,  # no bias
             [1, 1],  # stride
             [0, 0],  # padding
@@ -74,16 +86,21 @@ def test_grad_input_only():
         print("✗ Test FAILED - difference too large")
         return False
 
+
 def test_grad_bias_only():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing grad_bias computation...")
 
     # Setup
     batch_size, in_channels, height, width = 2, 3, 8, 8
     out_channels, kernel_h, kernel_w = 4, 3, 3
 
-    input_tensor = torch.randn(batch_size, in_channels, height, width, dtype=torch.float32, device='cpu')
-    weight = torch.randn(out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device='cpu')
+    input_tensor = torch.randn(
+        batch_size, in_channels, height, width, dtype=torch.float32, device="cpu"
+    )
+    weight = torch.randn(
+        out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device="cpu"
+    )
 
     # Forward pass to get grad_output shape
     output = torch.nn.functional.conv2d(input_tensor, weight, stride=1, padding=0)
@@ -92,7 +109,9 @@ def test_grad_bias_only():
     # PyTorch reference
     print("\nComputing with PyTorch (eager)...")
     grad_input_ref, grad_weight_ref, grad_bias_ref = aten.convolution_backward(
-        grad_output, input_tensor, weight,
+        grad_output,
+        input_tensor,
+        weight,
         [out_channels],  # bias_sizes
         [1, 1],  # stride
         [0, 0],  # padding
@@ -104,7 +123,9 @@ def test_grad_bias_only():
     )
     print(f"PyTorch grad_input: {grad_input_ref}")
     print(f"PyTorch grad_weight: {grad_weight_ref}")
-    print(f"PyTorch grad_bias shape: {grad_bias_ref.shape if grad_bias_ref is not None else None}")
+    print(
+        f"PyTorch grad_bias shape: {grad_bias_ref.shape if grad_bias_ref is not None else None}"
+    )
 
     # MAX backend
     print("\nCompiling with MAX backend...")
@@ -112,7 +133,9 @@ def test_grad_bias_only():
     @torch.compile(backend=max_backend)
     def conv_backward_grad_bias(grad_out, inp, wgt):
         result = aten.convolution_backward(
-            grad_out, inp, wgt,
+            grad_out,
+            inp,
+            wgt,
             [out_channels],  # bias_sizes
             [1, 1],  # stride
             [0, 0],  # padding
@@ -143,15 +166,19 @@ def test_grad_bias_only():
 
 
 def test_grad_input_and_bias():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing grad_input AND grad_bias together...")
 
     # Setup
     batch_size, in_channels, height, width = 2, 3, 8, 8
     out_channels, kernel_h, kernel_w = 4, 3, 3
 
-    input_tensor = torch.randn(batch_size, in_channels, height, width, dtype=torch.float32, device='cpu')
-    weight = torch.randn(out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device='cpu')
+    input_tensor = torch.randn(
+        batch_size, in_channels, height, width, dtype=torch.float32, device="cpu"
+    )
+    weight = torch.randn(
+        out_channels, in_channels, kernel_h, kernel_w, dtype=torch.float32, device="cpu"
+    )
 
     # Forward pass
     output = torch.nn.functional.conv2d(input_tensor, weight, stride=1, padding=0)
@@ -160,7 +187,9 @@ def test_grad_input_and_bias():
     # PyTorch reference
     print("\nComputing with PyTorch (eager)...")
     grad_input_ref, grad_weight_ref, grad_bias_ref = aten.convolution_backward(
-        grad_output, input_tensor, weight,
+        grad_output,
+        input_tensor,
+        weight,
         [out_channels],  # bias_sizes
         [1, 1],  # stride
         [0, 0],  # padding
@@ -177,7 +206,9 @@ def test_grad_input_and_bias():
     @torch.compile(backend=max_backend)
     def conv_backward_both(grad_out, inp, wgt):
         return aten.convolution_backward(
-            grad_out, inp, wgt,
+            grad_out,
+            inp,
+            wgt,
             [out_channels],  # bias_sizes
             [1, 1],  # stride
             [0, 0],  # padding
@@ -221,7 +252,7 @@ if __name__ == "__main__":
     if test_grad_input_and_bias():
         passed += 1
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"Summary: {passed}/{total} tests passed")
     if passed == total:
         print("✓ All tests PASSED!")

@@ -1399,22 +1399,41 @@ def aten_convolution_backward(
         # Convert back from NHWC to NCHW
         grad_input = grad_input_nhwc.permute([0, 3, 1, 2])
 
-    # --- Compute grad_weight (requires correlation/im2col) ---
+    # --- Compute grad_weight (not yet fully implemented) ---
     if output_mask[1]:
-        # grad_weight computation requires correlation between input and grad_output
-        # This needs either:
-        # 1. unfold/im2col operation (not available in MAX yet)
-        # 2. Custom Mojo kernel implementing the correlation
-        # 3. Composed operations using matmul and reshapes
+        # grad_weight computation attempted with custom Mojo kernel
+        # See torch_max_backend/mojo_kernels/conv_backward.mojo for kernel implementation
         #
-        # For now, we raise an error for this specific gradient
+        # CURRENT STATUS: Kernel code exists but cannot compile due to MAX API limitations:
+        # - MAX extensibility API cannot access tensor shapes dynamically in custom kernels
+        # - The API is designed primarily for elementwise operations
+        # - Complex operations like convolution backward need different integration approach
+        #
+        # NEXT STEPS TO COMPLETE:
+        # 1. Wait for MAX to support dynamic shape access in custom kernels, OR
+        # 2. Use MAX's lower-level C++ extension API (if available), OR
+        # 3. Implement using composed MAX graph operations (im2col + matmul + reshape)
+        #
+        # Algorithm (implemented in Mojo, not yet functional):
+        #   grad_weight[f, c, r, s] = Σ(grad_output[n, f, ho, wo] * input[n, c, h, w])
+        #   where h = ho * stride_h - pad_h + r * dil_h
+        #         w = wo * stride_w - pad_w + s * dil_w
+        #
         raise NotImplementedError(
-            "grad_weight computation in convolution_backward is not yet implemented. "
-            "This requires:\n"
-            "  - unfold/im2col operation (not available in MAX)\n"
-            "  - OR custom Mojo kernel implementing correlation\n"
-            "  - OR composed operations using matmul + reshapes\n"
-            "Note: grad_input and grad_bias are supported."
+            "grad_weight computation in convolution_backward is not fully operational.\n"
+            "\n"
+            "STATUS:\n"
+            "  ✓ Mojo kernel implementation created (torch_max_backend/mojo_kernels/conv_backward.mojo)\n"
+            "  ✓ CPU and GPU algorithms implemented following PyTorch CUDA patterns\n"
+            "  ✗ Cannot compile due to MAX extensibility API limitations\n"
+            "\n"
+            "LIMITATION:\n"
+            "  MAX custom kernel API cannot access tensor shapes dynamically.\n"
+            "  The current API is designed for elementwise operations only.\n"
+            "\n"
+            "WORKAROUND:\n"
+            "  Use PyTorch's native backward pass (without MAX backend) for now.\n"
+            "  grad_input and grad_bias are fully supported and working.\n"
         )
 
     return (grad_input, grad_weight, grad_bias)
