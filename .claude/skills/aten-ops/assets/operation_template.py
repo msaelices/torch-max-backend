@@ -10,15 +10,16 @@ Usage:
 3. Follow the 8-step workflow from the aten-ops skill
 """
 
-from torch.ops import aten
-from max.graph import TensorValue
 import max.graph.ops as max_ops
-from torch_max_backend.aten_functions import map_to
+from max.graph import TensorValue
+from torch.ops import aten
 
+from torch_max_backend.aten_functions import map_to
 
 # =============================================================================
 # Element-wise Operation Template
 # =============================================================================
+
 
 # OPERATION_NAME(Tensor self) -> Tensor
 @map_to(aten.OPERATION_NAME)
@@ -35,12 +36,10 @@ def aten_OPERATION_NAME(self: TensorValue) -> TensorValue:
 # Element-wise with Parameter Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, Scalar alpha=DEFAULT_VALUE) -> Tensor
 @map_to(aten.OPERATION_NAME)
-def aten_OPERATION_NAME(
-    self: TensorValue,
-    alpha: float = DEFAULT_VALUE,
-) -> TensorValue:
+def aten_OPERATION_NAME(self: TensorValue, alpha: float = DEFAULT_VALUE) -> TensorValue:
     """
     Brief description of operation with parameter.
 
@@ -58,12 +57,10 @@ def aten_OPERATION_NAME(
 # Binary Operation Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, Tensor other) -> Tensor
 @map_to(aten.OPERATION_NAME)
-def aten_OPERATION_NAME(
-    self: TensorValue,
-    other: TensorValue,
-) -> TensorValue:
+def aten_OPERATION_NAME(self: TensorValue, other: TensorValue) -> TensorValue:
     """
     Binary operation between two tensors.
 
@@ -83,12 +80,11 @@ def aten_OPERATION_NAME(
 # Binary with Scalar Multiplier Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, Tensor other, Scalar alpha=1.0) -> Tensor
 @map_to(aten.OPERATION_NAME)
 def aten_OPERATION_NAME(
-    self: TensorValue,
-    other: TensorValue,
-    alpha: float = 1.0,
+    self: TensorValue, other: TensorValue, alpha: float = 1.0
 ) -> TensorValue:
     """
     Binary operation with scalar multiplier.
@@ -112,12 +108,11 @@ def aten_OPERATION_NAME(
 # Reduction Operation Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, int dim, bool keepdim=False) -> Tensor
 @map_to(aten.OPERATION_NAME)
 def aten_OPERATION_NAME(
-    self: TensorValue,
-    dim: int,
-    keepdim: bool = False,
+    self: TensorValue, dim: int, keepdim: bool = False
 ) -> TensorValue:
     """
     Reduction operation along dimension.
@@ -141,12 +136,11 @@ def aten_OPERATION_NAME(
 # Optional Dimension Reduction Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 @map_to(aten.OPERATION_NAME)
 def aten_OPERATION_NAME(
-    self: TensorValue,
-    dim: int | None = None,
-    keepdim: bool = False,
+    self: TensorValue, dim: int | None = None, keepdim: bool = False
 ) -> TensorValue:
     """
     Reduction operation with optional dimension.
@@ -177,6 +171,7 @@ def aten_OPERATION_NAME(
 # Shape Manipulation Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, int[] size) -> Tensor
 @map_to(aten.OPERATION_NAME)
 def aten_OPERATION_NAME(self: TensorValue, size: list[int]) -> TensorValue:
@@ -197,13 +192,10 @@ def aten_OPERATION_NAME(self: TensorValue, size: list[int]) -> TensorValue:
 # Transpose Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, int dim0, int dim1) -> Tensor
 @map_to(aten.OPERATION_NAME)
-def aten_OPERATION_NAME(
-    self: TensorValue,
-    dim0: int,
-    dim1: int,
-) -> TensorValue:
+def aten_OPERATION_NAME(self: TensorValue, dim0: int, dim1: int) -> TensorValue:
     """
     Transpose two dimensions.
 
@@ -229,12 +221,10 @@ def aten_OPERATION_NAME(
 # Concatenation Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor[] tensors, int dim=0) -> Tensor
 @map_to(aten.OPERATION_NAME)
-def aten_OPERATION_NAME(
-    tensors: list[TensorValue],
-    dim: int = 0,
-) -> TensorValue:
+def aten_OPERATION_NAME(tensors: list[TensorValue], dim: int = 0) -> TensorValue:
     """
     Concatenate list of tensors along dimension.
 
@@ -263,6 +253,7 @@ def aten_OPERATION_NAME(
 # =============================================================================
 # Composed Operation Template
 # =============================================================================
+
 
 # OPERATION_NAME(Tensor self, int dim) -> Tensor
 @map_to(aten.OPERATION_NAME)
@@ -294,11 +285,11 @@ def aten_OPERATION_NAME(self: TensorValue, dim: int) -> TensorValue:
 # Operation with Optional Tensor Template
 # =============================================================================
 
+
 # OPERATION_NAME(Tensor self, Tensor? other=None) -> Tensor
 @map_to(aten.OPERATION_NAME)
 def aten_OPERATION_NAME(
-    self: TensorValue,
-    other: TensorValue | None = None,
+    self: TensorValue, other: TensorValue | None = None
 ) -> TensorValue:
     """
     Operation with optional tensor parameter.
@@ -321,6 +312,7 @@ def aten_OPERATION_NAME(
 # =============================================================================
 # Complex Operation Template
 # =============================================================================
+
 
 # OPERATION_NAME(Tensor input, Tensor weight, Tensor? bias, int[] stride, int[] padding) -> Tensor
 @map_to(aten.OPERATION_NAME)
@@ -347,11 +339,7 @@ def aten_OPERATION_NAME(
         Result tensor
     """
     result = max_ops.EQUIVALENT_OPERATION(
-        input,
-        weight,
-        bias=bias,
-        stride=tuple(stride),
-        padding=tuple(padding),
+        input, weight, bias=bias, stride=tuple(stride), padding=tuple(padding)
     )
     return result
 
@@ -359,6 +347,7 @@ def aten_OPERATION_NAME(
 # =============================================================================
 # In-place Operation Template
 # =============================================================================
+
 
 # OPERATION_NAME_(Tensor self) -> Tensor
 @map_to(aten.OPERATION_NAME_)
@@ -383,6 +372,7 @@ def aten_OPERATION_NAME_(self: TensorValue) -> TensorValue:
 # Helper Functions (if needed)
 # =============================================================================
 
+
 def _normalize_dimension(dim: int, ndim: int) -> int:
     """
     Normalize negative dimension to positive.
@@ -403,7 +393,9 @@ def _normalize_dimension(dim: int, ndim: int) -> int:
     return dim
 
 
-def _validate_shape_compatibility(shape1: tuple[int, ...], shape2: tuple[int, ...]) -> bool:
+def _validate_shape_compatibility(
+    shape1: tuple[int, ...], shape2: tuple[int, ...]
+) -> bool:
     """
     Check if two shapes are compatible for broadcasting.
 
