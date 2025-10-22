@@ -38,9 +38,15 @@ ATen (A Tensor Library) is PyTorch's foundational tensor operation library. This
 **How**: Ask subagent to explore `../pytorch` for the ATen function signature and semantics
 
 **Where to look**:
-- `../pytorch/aten/src/ATen/native/` - Implementations
+- `../pytorch/aten/src/ATen/native/` - **C++ implementations** (CPU/CUDA reference code)
 - `../pytorch/aten/src/ATen/native/native_functions.yaml` - Declarations
 - `../pytorch/torch/` - Python API
+
+**Finding C++ reference implementation**:
+- **CUDA kernels**: `../pytorch/aten/src/ATen/native/cuda/` (e.g., `SoftMax.cu`, `Activation.cu`, `Reduce.cu`)
+- **CPU kernels**: `../pytorch/aten/src/ATen/native/cpu/`
+- **Example**: For `log_softmax`, see `pytorch/aten/src/ATen/native/cuda/SoftMax.cu (log_softmax_cuda_out)`
+- **Why**: Understanding the C++ implementation helps you translate the logic to Mojo/MAX equivalents
 
 ### Step 2: Write Unit Tests
 
@@ -94,6 +100,9 @@ This confirms the operation isn't implemented yet.
 - Handle negative dimensions: `if dim < 0: dim = len(self.shape) + dim`
 - Map PyTorch `dim` to MAX `axis`
 - Use correct type hints: `TensorValue`, `int`, `float`, `bool`, `list[int]`, `int | None`
+- **Document C++ reference**: Add comment linking to PyTorch implementation
+  - Example: `# Based on: pytorch/aten/src/ATen/native/cuda/Activation.cu (relu_kernel)`
+  - This helps future developers understand the reference implementation
 
 **Patterns**: See `assets/operation_template.py` and `references/common_patterns.md`
 
@@ -164,11 +173,12 @@ This confirms the operation isn't implemented yet.
 2. Parametrize tests (multiple dtypes, shapes)
 3. Keep `aten_functions.py` alphabetically sorted
 4. Add signature comments
-5. Check for MAX equivalents first
-6. Handle edge cases (empty tensors, negative dims)
-7. Use beartype method for type hints
-8. Lint before commit: `uvx pre-commit run --all-files`
-9. Don't run full test suite during development
+5. Document C++ reference implementation in comments
+6. Check for MAX equivalents first
+7. Handle edge cases (empty tensors, negative dims)
+8. Use beartype method for type hints
+9. Lint before commit: `uvx pre-commit run --all-files`
+10. Don't run full test suite during development
 
 ## Integration with mojo-kernels Skill
 
@@ -186,12 +196,14 @@ For custom kernels: `Use the mojo-kernels skill to help me implement a custom ke
 ## Checklist
 
 - [ ] Researched ATen op signature
+- [ ] Found C++ reference implementation in PyTorch source
 - [ ] Written parametrized tests (multiple dtypes, shapes)
 - [ ] Tests fail with "Unsupported operation"
 - [ ] Added to `aten_functions.py` (alphabetical order)
 - [ ] Added signature comment
 - [ ] Researched MAX equivalents
 - [ ] Implemented with correct type hints
+- [ ] Documented C++ reference in code comments
 - [ ] All tests pass
 - [ ] Tested float32, float16, bfloat16
 - [ ] Tested edge cases
