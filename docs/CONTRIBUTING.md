@@ -66,15 +66,15 @@ The project includes a comprehensive **Mojo GPU Kernels Skill** to accelerate GP
 When working with Claude Code, simply reference the skill in your prompts:
 
 ```
-Use the mojo-gpu-kernels skill to help me implement the aten::relu operation.
+Use the mojo-kernels skill to help me implement the aten::relu operation.
 ```
 
 ```
-I need to write a reduction kernel for sum. Use the mojo-gpu-kernels skill to show me the best pattern.
+I need to write a reduction kernel for sum. Use the mojo-kernels skill to show me the best pattern.
 ```
 
 ```
-How do I optimize this kernel for better memory coalescing? Use the mojo-gpu-kernels skill.
+How do I optimize this kernel for better memory coalescing? Use the mojo-kernels skill.
 ```
 
 #### When to Use the Skill
@@ -100,7 +100,7 @@ The skill provides:
 - **Implementation patterns**: Ready-to-use code templates for all operation types
 - **Testing strategies**: Parametrized tests for multiple dtypes and shapes
 - **Type hints guidance**: Beartype method for finding correct types
-- **MAX operation discovery**: Integration with mojo-gpu-kernels skill
+- **MAX operation discovery**: Integration with mojo-kernels skill
 
 ## Adding Support for New Operations
 
@@ -141,16 +141,16 @@ Check the [Max Graph Ops](https://docs.modular.com/max/api/python/graph/ops/) av
 - Composable functions to implement the operation
 - Examples in existing MAX models
 
-**💡 Tip**: Use the **mojo-gpu-kernels skill** to quickly find MAX operations:
+**💡 Tip**: Use the **mojo-kernels skill** to quickly find MAX operations:
 ```
-Use the mojo-gpu-kernels skill to find MAX operations for implementing [operation_name]
+Use the mojo-kernels skill to find MAX operations for implementing [operation_name]
 ```
 
 The skill includes a comprehensive catalog of MAX operations in its references.
 
 If there is "backward" in the name, it's likely that you'll have to implement it in Mojo and put it in the "mojo_kernels" directory. If not, it's likely MAX already have something that can do it in.
 
-When there is no MAX alternative, the best alternative would be to migrate to Mojo a C++ function, by looking for the signature in the Pytorch codebase. **The mojo-gpu-kernels skill provides templates and patterns for writing custom Mojo kernels.**
+When there is no MAX alternative, the best alternative would be to migrate to Mojo a C++ function, by looking for the signature in the Pytorch codebase. **The mojo-kernels skill provides templates and patterns for writing custom Mojo kernels.**
 
 ### Step 6: Implement the Operation
 

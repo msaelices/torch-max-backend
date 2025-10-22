@@ -1,5 +1,5 @@
 ---
-name: mojo-gpu-kernels
+name: mojo-kernels
 description: Guide for writing efficient GPU kernels in Mojo using the MAX framework, including patterns for element-wise operations, reductions, shared memory usage, and PyTorch backend integration
 ---
 
@@ -12,11 +12,11 @@ This skill provides comprehensive guidance for writing GPU kernels in Mojo using
 Reference the skill in your prompts:
 
 ```
-Use the mojo-gpu-kernels skill to help me implement a custom activation function.
+Use the mojo-kernels skill to help me implement a custom activation function.
 ```
 
 ```
-I need to write a GPU kernel for matrix transpose. Use the mojo-gpu-kernels skill.
+I need to write a GPU kernel for matrix transpose. Use the mojo-kernels skill.
 ```
 
 The skill provides:

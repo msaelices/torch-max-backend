@@ -171,9 +171,9 @@ functions for your task and descriptions of inputs and outputs.
 3. **Examples**: `../modular/max/examples/` - Usage patterns
 4. **Models**: Pre-built models showing operation usage
 
-**Or use the mojo-gpu-kernels skill**:
+**Or use the mojo-kernels skill**:
 ```
-Use the mojo-gpu-kernels skill to find MAX operations for implementing [operation_name]
+Use the mojo-kernels skill to find MAX operations for implementing [operation_name]
 ```
 
 **Decision tree**:
@@ -197,7 +197,7 @@ Use the mojo-gpu-kernels skill to find MAX operations for implementing [operatio
 
 - **No MAX alternative**: Port from PyTorch C++ implementation
   ```
-  Use mojo-gpu-kernels skill to write custom Mojo kernel based on PyTorch C++ code
+  Use mojo-kernels skill to write custom Mojo kernel based on PyTorch C++ code
   ```
 
 ### Step 6: Implement the Operation
@@ -564,15 +564,15 @@ TORCH_MAX_BACKEND_BEARTYPE=0 uv run pytest tests/test_aten_functions.py::test_op
 9. **Run linter before commit**: `uvx pre-commit run --all-files`
 10. **Don't run full test suite during development**: Too slow, run specific tests
 
-## Integration with mojo-gpu-kernels Skill
+## Integration with mojo-kernels Skill
 
 When implementing operations requiring custom kernels:
 
 ```
-Use the mojo-gpu-kernels skill to help me implement a custom kernel for [operation]
+Use the mojo-kernels skill to help me implement a custom kernel for [operation]
 ```
 
-The mojo-gpu-kernels skill provides:
+The mojo-kernels skill provides:
 - Kernel patterns for element-wise, reductions, shared memory
 - Code templates for common kernel types
 - Performance optimization guidance
@@ -591,7 +591,7 @@ Ask subagent to search ../modular/max for operations similar to [operation_name]
 ```
 Or:
 ```
-Use mojo-gpu-kernels skill to find MAX operations for [operation_name]
+Use mojo-kernels skill to find MAX operations for [operation_name]
 ```
 
 **Test single operation**:
@@ -648,14 +648,14 @@ TORCH_MAX_BACKEND_VERBOSE=1 uv run pytest tests/test_aten_functions.py::test_ate
 uvx pre-commit run --all-files  # Always run before committing
 ```
 
-### Integration with mojo-gpu-kernels Skill
+### Integration with mojo-kernels Skill
 
 For custom kernel implementation:
 ```
-Use the mojo-gpu-kernels skill to find MAX operations for [operation]
+Use the mojo-kernels skill to find MAX operations for [operation]
 ```
 ```
-Use the mojo-gpu-kernels skill to write a custom kernel for [operation]
+Use the mojo-kernels skill to write a custom kernel for [operation]
 ```
 
 For detailed workflow documentation and examples, see the reference files in this skill.
