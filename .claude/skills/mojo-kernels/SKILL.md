@@ -25,6 +25,19 @@ The skill provides:
 - **Detailed references**: In-depth guides in `references/` directory
 - **MAX operations catalog**: Complete reference of available MAX operations
 
+## Documentation Management
+
+**IMPORTANT**: When developing Mojo GPU kernels:
+
+- **DO NOT commit** intermediate specification documents, research notes, or planning documentation
+- **Store all intermediate docs** in `.claude/docs/` directory (this directory is git-ignored)
+- Only commit final kernel implementations, tests, and essential reference materials in the skill directories
+- Intermediate docs include: PyTorch C++ kernel research, MAX operations discovery reports, kernel design notes, performance tuning notes
+
+**Examples of what goes where**:
+- `.claude/docs/`: Notes on PyTorch CUDA kernel for `log_softmax`, research on MAX reduction primitives, kernel optimization experiments
+- Committed to repo: Final Mojo kernel implementations, unit tests, templates in `assets/`, pattern guides in `references/`
+
 ## Core Concepts
 
 ### MAX GPU Kernel Architecture
@@ -184,6 +197,7 @@ Categories: activations, normalization, reductions, linear algebra, convolution,
 7. Document C++ reference implementation in comments
 8. Test across dtypes and shapes
 9. Lint: `uvx pre-commit run --all-files`
+10. Store intermediate documentation in `.claude/docs/`, not in version control
 
 ## Common Pitfalls
 

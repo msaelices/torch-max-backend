@@ -25,6 +25,19 @@ The skill provides:
 - **Testing strategies**: Comprehensive testing guide in `references/`
 - **Type hints guidance**: Beartype method for finding correct types
 
+## Documentation Management
+
+**IMPORTANT**: When working on ATen operations:
+
+- **DO NOT commit** intermediate specification documents, research notes, or planning documentation
+- **Store all intermediate docs** in `.claude/docs/` directory (this directory is git-ignored)
+- Only commit final implementation code, tests, and essential reference materials in the skill directories
+- Intermediate docs include: operation research notes, implementation plans, MAX operation discovery reports, type hint explorations
+
+**Examples of what goes where**:
+- `.claude/docs/`: Research on `aten::log_softmax` signature, notes on MAX equivalent functions, type hint discovery notes
+- Committed to repo: Final `aten_functions.py` implementation, unit tests in `test_aten_functions.py`, templates in `assets/`, guides in `references/`
+
 ## Overview
 
 ATen (A Tensor Library) is PyTorch's foundational tensor operation library. This skill guides you through the complete workflow of adding support for ATen operations in the MAX backend using test-driven development.
@@ -179,6 +192,7 @@ This confirms the operation isn't implemented yet.
 8. Use beartype method for type hints
 9. Lint before commit: `uvx pre-commit run --all-files`
 10. Don't run full test suite during development
+11. Store intermediate documentation in `.claude/docs/`, not in version control
 
 ## Integration with mojo-kernels Skill
 
