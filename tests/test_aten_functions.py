@@ -2337,11 +2337,7 @@ def test_max_pool2d_error_message_not_supported_in_graph(device: str):
 @pytest.mark.parametrize("dtype", [torch.float32])
 @pytest.mark.parametrize("dim", [-1])
 def test_log_softmax_basic(device: str, dtype: torch.dtype, dim: int):
-    """Test _log_softmax basic functionality.
-
-    Note: Currently only testing CPU and limited CUDA configs due to MAX GPU reduction
-    limitations with certain dtypes (float64, float16, bfloat16) and dimensions.
-    """
+    """Test _log_softmax basic functionality."""
 
     def fn(x):
         return aten._log_softmax(x, dim, False)
