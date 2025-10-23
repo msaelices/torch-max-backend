@@ -555,6 +555,14 @@ def aten__log_softmax(input: MaxTensor, dim: int, half_to_float: bool) -> MaxTen
         Log-softmax of input along the specified dimension.
         Output dtype is float32 if half_to_float=True, otherwise matches input dtype.
     """
+    # PyTorch checks: half_to_float conversion is only supported for Half type
+    # See: pytorch/aten/src/ATen/native/cuda/SoftMax.cu
+    if half_to_float:
+        if input.dtype != DType.float16:
+            raise ValueError(
+                f"half_to_float conversion is supported for Half (float16) type only, got {input.dtype}"
+            )
+
     # Store original dtype for potential conversion back
     original_dtype = input.dtype
 
