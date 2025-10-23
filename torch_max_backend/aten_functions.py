@@ -1399,42 +1399,48 @@ def aten_convolution_backward(
         # Convert back from NHWC to NCHW
         grad_input = grad_input_nhwc.permute([0, 3, 1, 2])
 
-    # --- Compute grad_weight (not yet fully implemented) ---
+    # --- Compute grad_weight (using custom Mojo kernel with shape parameters) ---
     if output_mask[1]:
-        # grad_weight computation attempted with custom Mojo kernel
-        # See torch_max_backend/mojo_kernels/conv_backward.mojo for kernel implementation
-        #
-        # CURRENT STATUS: Kernel code exists but cannot compile due to MAX API limitations:
-        # - MAX extensibility API cannot access tensor shapes dynamically in custom kernels
-        # - The API is designed primarily for elementwise operations
-        # - Complex operations like convolution backward need different integration approach
-        #
-        # NEXT STEPS TO COMPLETE:
-        # 1. Wait for MAX to support dynamic shape access in custom kernels, OR
-        # 2. Use MAX's lower-level C++ extension API (if available), OR
-        # 3. Implement using composed MAX graph operations (im2col + matmul + reshape)
-        #
-        # Algorithm (implemented in Mojo, not yet functional):
-        #   grad_weight[f, c, r, s] = Σ(grad_output[n, f, ho, wo] * input[n, c, h, w])
-        #   where h = ho * stride_h - pad_h + r * dil_h
-        #         w = wo * stride_w - pad_w + s * dil_w
-        #
-        raise NotImplementedError(
-            "grad_weight computation in convolution_backward is not fully operational.\n"
-            "\n"
-            "STATUS:\n"
-            "  ✓ Mojo kernel implementation created (torch_max_backend/mojo_kernels/conv_backward.mojo)\n"
-            "  ✓ CPU and GPU algorithms implemented following PyTorch CUDA patterns\n"
-            "  ✗ Cannot compile due to MAX extensibility API limitations\n"
-            "\n"
-            "LIMITATION:\n"
-            "  MAX custom kernel API cannot access tensor shapes dynamically.\n"
-            "  The current API is designed for elementwise operations only.\n"
-            "\n"
-            "WORKAROUND:\n"
-            "  Use PyTorch's native backward pass (without MAX backend) for now.\n"
-            "  grad_input and grad_bias are fully supported and working.\n"
-        )
+        # grad_weight computation uses custom Mojo kernel
+        # We pass tensor shapes as compile-time parameters since they're known at graph construction
+
+        # Get shapes
+        N, F_out, HO, WO = grad_output.shape
+        _, C, H, W = input.shape
+        F_weight, C_weight, R, S = weight.shape
+
+        # Create grad_weight tensor with correct shape
+        grad_weight = max_ops.custom(
+            "conv2d_backward_weight",
+            values=[grad_output, input],
+            out_types=[
+                TensorType(
+                    dtype=weight.type.dtype,
+                    shape=weight.type.shape,
+                    device=weight.type.device,
+                )
+            ],
+            parameters={
+                # Pass shapes as compile-time parameters
+                "N": int(N),
+                "F": int(F_weight),
+                "C": int(C),
+                "H": int(H),
+                "W": int(W),
+                "HO": int(HO),
+                "WO": int(WO),
+                "R": int(R),
+                "S": int(S),
+                # Pass convolution parameters
+                "stride_h": int(stride[0]),
+                "stride_w": int(stride[1]),
+                "pad_h": int(padding[0]),
+                "pad_w": int(padding[2]),  # padding is (top, bottom, left, right)
+                "dil_h": int(dilation[0]),
+                "dil_w": int(dilation[1]),
+            },
+            device=weight.type.device,
+        )[0].tensor
 
     return (grad_input, grad_weight, grad_bias)
 
