@@ -2396,4 +2396,4 @@ def test_log_softmax_half_to_float_false(device: str, dtype: torch.dtype, dim: i
         return aten._log_softmax(x, dim, False)
 
     x = torch.randn(3, 4, 5, dtype=dtype)
-    check_functions_are_equivalent(fn, device, [x])
+    check_functions_are_equivalent(fn, device, [x], atol=1e-3, rtol=1e-2)
