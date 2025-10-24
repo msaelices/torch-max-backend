@@ -231,6 +231,52 @@ def aten__adaptive_avg_pool2d(
 
 
 # _adaptive_avg_pool2d_backward(Tensor grad_output, Tensor self) -> Tensor
+@map_to(aten._adaptive_avg_pool2d_backward)
+def aten__adaptive_avg_pool2d_backward(
+    grad_output: TensorValue, input_tensor: TensorValue
+) -> TensorValue:
+    """Compute gradient for adaptive average pooling 2d backward pass.
+
+    Args:
+        grad_output: Gradient from the output, shape (N, C, H_out, W_out) or (C, H_out, W_out)
+        input_tensor: Original input tensor, shape (N, C, H_in, W_in) or (C, H_in, W_in)
+
+    Returns:
+        Gradient with respect to input, same shape as input_tensor
+    """
+    # Get shapes
+    grad_shape = grad_output.shape
+    input_shape = input_tensor.shape
+
+    # Handle both 3D (C, H, W) and 4D (N, C, H, W) inputs
+    if len(input_shape) == 3:
+        # Add batch dimension
+        grad_output = grad_output.reshape([1] + list(grad_shape))
+        input_tensor_reshaped = input_tensor.reshape([1] + list(input_shape))
+        remove_batch = True
+    else:
+        input_tensor_reshaped = input_tensor
+        remove_batch = False
+
+    grad_input = max_ops.custom(
+        name="adaptive_avg_pool2d_backward",
+        device=input_tensor_reshaped.device,
+        values=[grad_output, input_tensor_reshaped],
+        out_types=[
+            TensorType(
+                dtype=input_tensor_reshaped.dtype,
+                shape=input_tensor_reshaped.shape,
+                device=input_tensor_reshaped.device,
+            )
+        ],
+    )[0]
+
+    if remove_batch:
+        grad_input = grad_input.reshape(input_shape)
+
+    return grad_input
+
+
 # _adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
 # _cdist_forward(Tensor x1, Tensor x2, float p, int? compute_mode) -> Tensor
 # _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1) -> (Tensor, Tensor, Tensor, Tensor)
