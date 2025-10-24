@@ -2331,3 +2331,69 @@ def test_max_pool2d_error_message_not_supported_in_graph(device: str):
         match="The implementation of aten.max_pool2d_with_indices doesn't support returning indices yet.",
     ):
         check_functions_are_equivalent(fn, device, [x])
+
+
+# aten._log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+@pytest.mark.parametrize("dtype", [torch.float32])
+@pytest.mark.parametrize("dim", [-1])
+def test_log_softmax_basic(device: str, dtype: torch.dtype, dim: int):
+    """Test _log_softmax basic functionality."""
+
+    def fn(x):
+        return aten._log_softmax(x, dim, False)
+
+    x = torch.randn(3, 4, 5, dtype=dtype)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+def test_log_softmax_numerical_stability(device: str):
+    """Test _log_softmax with large values to verify numerical stability."""
+
+    def fn(x):
+        return aten._log_softmax(x, -1, False)
+
+    # Create tensor with large values that could cause overflow without max subtraction
+    x = torch.randn(2, 3, dtype=torch.float32) * 100
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dim", [-1, 0, 1])
+def test_log_softmax_half_to_float_true(device: str, dim: int):
+    """Test _log_softmax with half_to_float=True.
+
+    When half_to_float=True:
+    - Input must be float16
+    - Computation is done in float32
+    - Output is float32 (not converted back to float16)
+
+    Note: PyTorch doesn't support half_to_float=True on CPU, so we xfail those tests.
+    """
+    if device == "cpu":
+        pytest.xfail(
+            "PyTorch doesn't support half_to_float=True on CPU so we cannot compare results with it"
+        )
+
+    def fn(x):
+        return aten._log_softmax(x, dim, True)
+
+    # half_to_float=True requires float16 input
+    x = torch.randn(3, 4, 5, dtype=torch.float16)
+    check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
+@pytest.mark.parametrize("dim", [-1, 0])
+def test_log_softmax_half_to_float_false(device: str, dtype: torch.dtype, dim: int):
+    """Test _log_softmax with half_to_float=False.
+
+    When half_to_float=False:
+    - Input can be any dtype
+    - Output dtype matches input dtype
+    - For float16 inputs, computation happens in float32 but result is converted back
+    """
+
+    def fn(x):
+        return aten._log_softmax(x, dim, False)
+
+    x = torch.randn(3, 4, 5, dtype=dtype)
+    check_functions_are_equivalent(fn, device, [x], atol=1e-3, rtol=1e-2)
