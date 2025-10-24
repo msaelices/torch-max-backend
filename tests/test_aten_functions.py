@@ -6,7 +6,142 @@ from torch._dynamo import mark_dynamic
 from torch._dynamo.exc import BackendCompilerFailed
 from torch.ops import aten
 
-from torch_max_backend.testing import check_functions_are_equivalent
+from torch_max_backend.testing import (
+    Conf,
+    check_functions_are_equivalent,
+    check_outputs,
+)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_adaptive_avg_pool2d_backward_basic(device: str, dtype: torch.dtype):
+    """Test _adaptive_avg_pool2d_backward basic functionality"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    # Create test tensors
+    batch_size, channels, height, width = 2, 3, 8, 8
+    output_height, output_width = 4, 4
+
+    input_tensor = torch.randn(
+        batch_size, channels, height, width, device=device, dtype=dtype
+    )
+    grad_output = torch.randn(
+        batch_size, channels, output_height, output_width, device=device, dtype=dtype
+    )
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+@pytest.mark.parametrize(
+    "input_size,output_size",
+    [((8, 8), (4, 4)), ((10, 10), (5, 5)), ((7, 7), (3, 3)), ((16, 16), (8, 8))],
+)
+def test_adaptive_avg_pool2d_backward_different_sizes(
+    device: str, input_size: tuple, output_size: tuple
+):
+    """Test _adaptive_avg_pool2d_backward with different input and output sizes"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    batch_size, channels = 2, 3
+    input_height, input_width = input_size
+    output_height, output_width = output_size
+
+    input_tensor = torch.randn(
+        batch_size, channels, input_height, input_width, device=device
+    )
+    grad_output = torch.randn(
+        batch_size, channels, output_height, output_width, device=device
+    )
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+def test_adaptive_avg_pool2d_backward_3d_input(device: str):
+    """Test _adaptive_avg_pool2d_backward with 3D input (no batch dimension)"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    channels, height, width = 3, 8, 8
+    output_height, output_width = 4, 4
+
+    input_tensor = torch.randn(channels, height, width, device=device)
+    grad_output = torch.randn(channels, output_height, output_width, device=device)
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+@pytest.mark.parametrize("channels", [1, 3, 16, 64])
+def test_adaptive_avg_pool2d_backward_different_channels(device: str, channels: int):
+    """Test _adaptive_avg_pool2d_backward with different numbers of channels"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    batch_size, height, width = 2, 8, 8
+    output_height, output_width = 4, 4
+
+    input_tensor = torch.randn(batch_size, channels, height, width, device=device)
+    grad_output = torch.randn(
+        batch_size, channels, output_height, output_width, device=device
+    )
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+def test_adaptive_avg_pool2d_backward_non_uniform_pooling(device: str):
+    """Test _adaptive_avg_pool2d_backward with non-uniform pooling regions"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    # Input size 9x9 to output size 4x4 creates non-uniform pooling regions
+    batch_size, channels = 2, 3
+    input_tensor = torch.randn(batch_size, channels, 9, 9, device=device)
+    grad_output = torch.randn(batch_size, channels, 4, 4, device=device)
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+def test_adaptive_avg_pool2d_backward_output_size_one(device: str):
+    """Test _adaptive_avg_pool2d_backward with output size (1, 1)"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    batch_size, channels, height, width = 2, 3, 8, 8
+
+    input_tensor = torch.randn(batch_size, channels, height, width, device=device)
+    grad_output = torch.randn(batch_size, channels, 1, 1, device=device)
+
+    check_functions_are_equivalent(fn, device, [grad_output, input_tensor])
+
+
+@pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
+def test_adaptive_avg_pool2d_backward_half_precision(device: str, dtype: torch.dtype):
+    """Test _adaptive_avg_pool2d_backward with half precision types"""
+
+    def fn(grad_output, input_tensor):
+        return aten._adaptive_avg_pool2d_backward.default(grad_output, input_tensor)
+
+    batch_size, channels, height, width = 2, 3, 8, 8
+    output_height, output_width = 4, 4
+
+    input_tensor = torch.randn(
+        batch_size, channels, height, width, device=device, dtype=dtype
+    )
+    grad_output = torch.randn(
+        batch_size, channels, output_height, output_width, device=device, dtype=dtype
+    )
+
+    # Half precision may have lower accuracy
+    check_functions_are_equivalent(
+        fn, device, [grad_output, input_tensor], atol=1e-2, rtol=1e-2
+    )
 
 
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
@@ -2679,3 +2814,73 @@ def test_max_pool2d_error_message_not_supported_in_graph(device: str):
         match="The implementation of aten.max_pool2d_with_indices doesn't support returning indices yet.",
     ):
         check_functions_are_equivalent(fn, device, [x])
+
+
+# aten._log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+def test_log_softmax_basic(conf: Conf):
+    """Test _log_softmax basic functionality."""
+
+    def fn(x):
+        return aten._log_softmax(x, -1, False)
+
+    x = torch.randn(3, 4, 5)
+    check_outputs(fn, conf, [x])
+
+
+def test_log_softmax_numerical_stability(conf: Conf):
+    """Test _log_softmax with large values to verify numerical stability."""
+
+    def fn(x):
+        return aten._log_softmax(x, -1, False)
+
+    # Create tensor with large values that could cause overflow without max subtraction
+    x = torch.randn(2, 3, dtype=torch.float32) * 100
+    check_outputs(fn, conf, [x])
+
+
+@pytest.mark.parametrize("dim", [-1, 0, 1])
+def test_log_softmax_half_to_float_true(conf: Conf, dim: int):
+    """Test _log_softmax with half_to_float=True.
+
+    When half_to_float=True:
+    - Input must be float16
+    - Computation is done in float32
+    - Output is float32 (not converted back to float16)
+    """
+    if not torch.cuda.is_available():
+        pytest.skip(
+            "CUDA is required for half_to_float=True tests"
+            " as the cpu does not have a reference implementation."
+        )
+
+    def fn(x):
+        initial_device = x.device
+        if x.device.type == "cpu" and not torch.compiler.is_compiling():
+            # We're in the reference eager cpu execution, which doesn't work on
+            # cpu. We move the computation to cuda for reference.
+            x = x.to("cuda")
+
+        output = aten._log_softmax(x, dim, True)
+        return output.to(initial_device)
+
+    # half_to_float=True requires float16 input
+    x = torch.randn(3, 4, 5, dtype=torch.float16)
+    check_outputs(fn, conf, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
+@pytest.mark.parametrize("dim", [-1, 0])
+def test_log_softmax_half_to_float_false(conf: Conf, dtype: torch.dtype, dim: int):
+    """Test _log_softmax with half_to_float=False.
+
+    When half_to_float=False:
+    - Input can be any dtype
+    - Output dtype matches input dtype
+    - For float16 inputs, computation happens in float32 but result is converted back
+    """
+
+    def fn(x):
+        return aten._log_softmax(x, dim, False)
+
+    x = torch.randn(3, 4, 5, dtype=dtype)
+    check_outputs(fn, conf, [x], atol=1e-3, rtol=1e-2)
