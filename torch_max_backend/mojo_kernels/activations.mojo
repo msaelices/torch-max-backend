@@ -5,19 +5,19 @@ from runtime.asyncrt import DeviceContextPtr
 from tensor import InputTensor, OutputTensor, foreach
 from utils import IndexList, StaticTuple
 
+
 @register("gelu_backward")
 struct GeluBackwardKernel:
     @staticmethod
     fn execute[
         dtype: DType,
-        rank: Int,
-        //,
+        rank: Int, //,
         target: StaticString,
         approximate: StaticString,
     ](
-        output: OutputTensor[dtype = dtype, rank = rank],
-        grad_output: InputTensor[dtype = dtype, rank = rank],
-        input: InputTensor[dtype = dtype, rank = rank],
+        output: OutputTensor[dtype=dtype, rank=rank],
+        grad_output: InputTensor[dtype=dtype, rank=rank],
+        input: InputTensor[dtype=dtype, rank=rank],
         ctx: DeviceContextPtr,
     ) raises:
         print("output.shape", output)
@@ -55,27 +55,27 @@ struct GeluBackwardKernel:
                 # Tanh approximation backward
                 # Formula: grad = dy * (left_derivative + right_derivative)
                 # See PyTorch CUDA implementation for details
-            
+
                 # Constants from PyTorch implementation
                 alias k_Beta = 0.7978845608028654  # sqrt(2) * sqrt(2/π) * 0.5
                 alias k_Kappa = 0.044715
-            
+
                 # Compute inner = kBeta * (x + kKappa * x³)
                 x_squared = x * x
                 x_cubed = x_squared * x
                 inner = k_Beta * (x + k_Kappa * x_cubed)
                 tanh_inner = math.tanh(inner)
-            
+
                 # Left term derivatives
                 left = 0.5 * x
                 right = 1.0 + tanh_inner
                 left_derivative = 0.5 * right
-            
+
                 # Right term derivatives
                 tanh_derivative = 1.0 - tanh_inner * tanh_inner
                 inner_derivative = k_Beta * (1.0 + 3.0 * k_Kappa * x_squared)
                 right_derivative = left * tanh_derivative * inner_derivative
-            
+
                 # Total gradient
                 result = grad_out * (left_derivative + right_derivative)
             return result
@@ -84,4 +84,3 @@ struct GeluBackwardKernel:
             func,
             target=target,
         ](output, ctx)
-
