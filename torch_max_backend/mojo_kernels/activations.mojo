@@ -20,7 +20,6 @@ struct GeluBackwardKernel:
         input: InputTensor[dtype=dtype, rank=rank],
         ctx: DeviceContextPtr,
     ) raises:
-        print("output.shape", output)
 
         @parameter
         @always_inline
