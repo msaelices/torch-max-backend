@@ -2,7 +2,7 @@ import math
 from compiler import register
 from gpu.id import global_idx
 from runtime.asyncrt import DeviceContextPtr
-from tensor_internal import InputTensor, OutputTensor, foreach
+from tensor import InputTensor, OutputTensor, foreach
 from utils import IndexList, StaticTuple
 
 @register("gelu_backward")
