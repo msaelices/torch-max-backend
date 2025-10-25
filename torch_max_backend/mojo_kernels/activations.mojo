@@ -6,7 +6,7 @@ from tensor import InputTensor, OutputTensor, foreach
 from utils import IndexList, StaticTuple
 
 
-@register("gelu_backward")
+@compiler.register("gelu_backward")
 struct GeluBackwardKernel:
     @staticmethod
     fn execute[
