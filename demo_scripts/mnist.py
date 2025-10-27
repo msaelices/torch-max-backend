@@ -3,11 +3,9 @@ MNIST Training Demo - Getting Started with PyTorch
 
 This is a simple getting started example that demonstrates training and
 evaluating a neural network on the MNIST dataset.
-
-Uses GELU activation (which has backward support implemented) so it can
-potentially be compiled with max_backend once other necessary ops are ready.
 """
 
+import os
 from pathlib import Path
 
 import torch
@@ -16,6 +14,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from torch_max_backend import max_backend
+
+os.environ["TORCH_MAX_BACKEND_PROFILE"] = "0"
+os.environ["TORCH_MAX_BACKEND_VERBOSE"] = "0"
 
 
 class SimpleNet(nn.Module):
@@ -32,9 +34,9 @@ class SimpleNet(nn.Module):
         # Flatten the input
         x = x.view(-1, 784)
 
-        # Hidden layers with GELU activation (backward already implemented)
-        x = F.gelu(self.fc1(x))
-        x = F.gelu(self.fc2(x))
+        # Hidden layers with RELU activation
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
 
         # Output layer (no activation, will use CrossEntropyLoss)
         x = self.fc3(x)
@@ -136,6 +138,10 @@ def main():
 
     # Model, loss, and optimizer
     model = SimpleNet().to(device)
+
+    # Compile the model with max_backend
+    model = torch.compile(model, backend=max_backend, fullgraph=True)
+
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
 

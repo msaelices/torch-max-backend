@@ -247,6 +247,7 @@ class _GraphFactory:
             key = key.overloadpacket
 
         if key not in MAPPING_TORCH_ATEN_TO_MAX:
+            breakpoint()
             raise MaxCompilerError(
                 "The aten function is not supported by the Max backend yet. "
                 + get_error_message(node, node_idx, func_args, func_kwargs)
