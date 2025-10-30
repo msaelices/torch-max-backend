@@ -72,7 +72,15 @@ def convert_all_lazy_to_torch_max_tensors(x: Any) -> Any:
             for key, value in x.items()
         }
     elif isinstance(
-        x, int | float | str | bool | type(None) | torch.dtype | torch.device
+        x,
+        int
+        | float
+        | str
+        | bool
+        | type(None)
+        | torch.dtype
+        | torch.device
+        | NotImplementedError,
     ):
         return x
     else:
@@ -96,6 +104,9 @@ def wrap_for_max_device(func: Callable) -> Callable:
 
 register_aten_op("aten::_adaptive_avg_pool2d")(
     wrap_for_max_device(aten_functions.aten__adaptive_avg_pool2d)
+)
+register_aten_op("aten::_adaptive_avg_pool2d_backward")(
+    wrap_for_max_device(aten_functions.aten__adaptive_avg_pool2d_backward)
 )
 
 
@@ -248,6 +259,7 @@ def empty_strided(
 
 
 register_aten_op("aten::eq")(wrap_for_max_device(aten_functions.aten_eq))
+register_aten_op("aten::erf")(wrap_for_max_device(aten_functions.aten_erf))
 register_aten_op("aten::exp")(wrap_for_max_device(aten_functions.aten_exp))
 register_aten_op("aten::expand")(wrap_for_max_device(aten_functions.aten_expand))
 
@@ -375,6 +387,7 @@ register_aten_op("aten::stack")(wrap_for_max_device(aten_functions.aten_stack))
 register_aten_op("aten::sub.Tensor")(wrap_for_max_device(aten_functions.aten_sub))
 register_aten_op("aten::sum.dim_IntList")(wrap_for_max_device(aten_functions.aten_sum))
 register_aten_op("aten::t")(wrap_for_max_device(aten_functions.aten_t))
+register_aten_op("aten::tan")(wrap_for_max_device(aten_functions.aten_tan))
 register_aten_op("aten::tanh")(wrap_for_max_device(aten_functions.aten_tanh))
 
 register_aten_op("aten::transpose.int")(

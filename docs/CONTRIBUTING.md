@@ -39,6 +39,17 @@ uv run pytest -n 15
 uv run pytest tests/test_compiler.py
 ```
 
+## Project Architecture
+
+The project supports PyTorch operations in **two execution modes**:
+
+1. **Graph Mode**: Via `torch.compile(backend=max_backend)` - compiles FX graphs to MAX
+2. **Eager Mode**: Via `torch.device("max_device")` - executes operations immediately on MAX
+
+When implementing operations, you must:
+- Implement in `torch_max_backend/aten_functions.py` (works for both modes)
+- Register in `torch_max_backend/max_device/max_device_aten_ops.py` (enables eager mode)
+
 ## Development Workflow
 
 ### Code Quality Standards
@@ -94,17 +105,30 @@ When there is no MAX alternative, the best alternative would be to migrate to Mo
 
 ### Step 6: Implement the Operation
 
-Write the ATen operation implementation using MAX functions.
+Write the ATen operation implementation in `torch_max_backend/aten_functions.py` using MAX functions.
 
-This is an example of currently implemented `aten.cat()` operation:
+**Important**: Implementation must support **both** graph mode (`TensorValue`) and eager mode (`MaxEagerTensor`). Use `MaxTensor` type hint for dual-mode support.
+
+Example:
 ```python
-# cat(Tensor[] tensors, int dim=0) -> Tensor
-@map_to(aten.cat)
-def aten_cat(tensors: list[TensorValue], dim: int = 0) -> TensorValue:
+# aten::cat(Tensor[] tensors, int dim=0) -> Tensor
+def aten_cat(tensors: list[MaxTensor], dim: int = 0) -> MaxTensor:
     return max_ops.concat(tensors, axis=dim)
 ```
 
-### Step 7: Verify Implementation
+### Step 7: Register for Eager Mode
+
+Add registration in `torch_max_backend/max_device/max_device_aten_ops.py`:
+
+```python
+register_aten_op("aten::cat")(
+    wrap_for_max_device(aten_functions.aten_cat)
+)
+```
+
+Place in alphabetical order. The wrapper handles tensor conversion automatically.
+
+### Step 8: Verify Implementation
 
 ```bash
 # Run your specific tests
@@ -149,11 +173,18 @@ TORCH_MAX_BACKEND_PROFILE=1 uv run python your_script.py
 
 ## Testing Strategy
 
+### Test Files
+
+- **`test_aten_functions.py`**: Individual ATen operations (both graph and eager modes)
+- **`test_compiler.py`**: Torch.compile backend integration
+- **`test_max_device.py`**: MAX device eager execution
+- **`test_high_level_ops.py`**: High-level composed operations
+
 ### Test Coverage Areas
 
-- **Basic Operations**: Arithmetic operations on available devices
-- **Device Support**: CPU and CUDA compatibility
-- **Compilation**: `torch.compile` integration
+- **ATen Operations**: Graph mode (`torch.compile`) and eager mode (`max_device`)
+- **Device Support**: CPU and max_device (with GPU if available)
+- **Compilation**: `torch.compile(backend=max_backend)` integration
 - **Error Handling**: Unsupported operations
 
 ### Test Fixtures

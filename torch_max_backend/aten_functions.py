@@ -17,7 +17,7 @@ import torch
 from max.dtype import DType
 from max.experimental import functional as F
 from max.experimental.tensor import Tensor as MaxEagerTensor
-from max.graph import Dim, StaticDim, TensorType, TensorValue
+from max.graph import Dim, StaticDim, TensorType
 from max.graph import ops as max_ops
 from max.graph.type import DeviceRef
 from max.torch.torch import max_device_ref
@@ -25,10 +25,10 @@ from torch._decomp import core_aten_decompositions
 from torch._ops import OpOverload, OpOverloadPacket
 from torch.ops import aten
 
+from torch_max_backend import custom_mojo_ops
 from torch_max_backend.flags import verbose_enabled
 from torch_max_backend.max_device.torch_max_tensor import get_ordered_accelerators
-
-MaxTensor = TensorValue | MaxEagerTensor
+from torch_max_backend.types import MaxTensor, Scalar, SymIntType
 
 
 def find_broadcast_shape(shape_a: list[Dim], shape_b: list[Dim]) -> list[Dim]:
@@ -70,9 +70,6 @@ def torch_device_to_max_device(x: torch.device) -> DeviceRef:
     else:
         return max_device_ref(x)
 
-
-Scalar = int | float | Dim
-SymIntType = int | Dim
 
 # Ops that need to be decomposed.
 DECOMPOSITION_TABLE = core_aten_decompositions()
@@ -233,8 +230,8 @@ def aten__adaptive_avg_pool2d(
 # _adaptive_avg_pool2d_backward(Tensor grad_output, Tensor self) -> Tensor
 @map_to(aten._adaptive_avg_pool2d_backward)
 def aten__adaptive_avg_pool2d_backward(
-    grad_output: TensorValue, input_tensor: TensorValue
-) -> TensorValue:
+    grad_output: MaxTensor, input_tensor: MaxTensor
+) -> MaxTensor:
     """Compute gradient for adaptive average pooling 2d backward pass.
 
     Args:
@@ -258,18 +255,9 @@ def aten__adaptive_avg_pool2d_backward(
         input_tensor_reshaped = input_tensor
         remove_batch = False
 
-    grad_input = max_ops.custom(
-        name="adaptive_avg_pool2d_backward",
-        device=input_tensor_reshaped.device,
-        values=[grad_output, input_tensor_reshaped],
-        out_types=[
-            TensorType(
-                dtype=input_tensor_reshaped.dtype,
-                shape=input_tensor_reshaped.shape,
-                device=input_tensor_reshaped.device,
-            )
-        ],
-    )[0]
+    grad_input = custom_mojo_ops.adaptive_avg_pool2d_backward(
+        grad_output, input_tensor_reshaped
+    )
 
     if remove_batch:
         grad_input = grad_input.reshape(input_shape)
@@ -1162,15 +1150,7 @@ def aten_avg_pool2d(
 # bitwise_and.Scalar(Tensor self, Scalar other) -> Tensor
 @map_to(aten.bitwise_and.Scalar)
 def aten_bitwise_and_scalar(input: MaxTensor, other: Scalar) -> MaxTensor:
-    return F.custom(
-        name="bitwise_and_scalar",
-        device=input.device,
-        values=[input],
-        parameters=dict(other=other),
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_and_scalar(input, other)
 
 
 # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
@@ -1182,41 +1162,19 @@ def aten_bitwise_and(input: MaxTensor, other: MaxTensor) -> MaxTensor:
     input = F.broadcast_to(input, final_shape)
     other = F.broadcast_to(other, final_shape)
 
-    return F.custom(
-        name="bitwise_and",
-        device=input.device,
-        values=[input, other],
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_and(input, other)
 
 
 # bitwise_not(Tensor self) -> Tensor
 @map_to(aten.bitwise_not)
 def aten_bitwise_not(input: MaxTensor) -> MaxTensor:
-    return F.custom(
-        name="bitwise_not",
-        device=input.device,
-        values=[input],
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_not(input)
 
 
 # bitwise_or.Scalar(Tensor self, Scalar other) -> Tensor
 @map_to(aten.bitwise_or.Scalar)
 def aten_bitwise_or_scalar(input: MaxTensor, other: Scalar) -> MaxTensor:
-    return F.custom(
-        name="bitwise_or_scalar",
-        device=input.device,
-        values=[input],
-        parameters=dict(other=other),
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_or_scalar(input, other)
 
 
 # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
@@ -1228,28 +1186,13 @@ def aten_bitwise_or(input: MaxTensor, other: MaxTensor) -> MaxTensor:
     input = F.broadcast_to(input, final_shape)
     other = F.broadcast_to(other, final_shape)
 
-    return F.custom(
-        name="bitwise_or",
-        device=input.device,
-        values=[input, other],
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_or(input, other)
 
 
 # bitwise_xor.Scalar(Tensor self, Scalar other) -> Tensor
 @map_to(aten.bitwise_xor.Scalar)
 def aten_bitwise_xor_scalar(input: MaxTensor, other: Scalar) -> MaxTensor:
-    return F.custom(
-        name="bitwise_xor_scalar",
-        device=input.device,
-        values=[input],
-        parameters=dict(other=other),
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_xor_scalar(input, other)
 
 
 # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
@@ -1261,14 +1204,7 @@ def aten_bitwise_xor(input: MaxTensor, other: MaxTensor) -> MaxTensor:
     input = F.broadcast_to(input, final_shape)
     other = F.broadcast_to(other, final_shape)
 
-    return F.custom(
-        name="bitwise_xor",
-        device=input.device,
-        values=[input, other],
-        out_types=[
-            TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-        ],
-    )[0]
+    return custom_mojo_ops.bitwise_xor(input, other)
 
 
 # bmm(Tensor self, Tensor mat2) -> Tensor
@@ -1306,14 +1242,7 @@ def aten_ceil(input: MaxTensor) -> MaxTensor:
     if input.type.dtype.is_integral():
         return input
     else:
-        return F.custom(
-            name="ceil",
-            device=input.device,
-            values=[input],
-            out_types=[
-                TensorType(dtype=input.dtype, shape=input.shape, device=input.device)
-            ],
-        )[0]
+        return custom_mojo_ops.ceil(input)
 
 
 # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
@@ -1610,6 +1539,9 @@ def aten_eq(x: MaxTensor, y: MaxTensor | Scalar) -> MaxTensor:
 
 
 # erf(Tensor self) -> Tensor
+@map_to(aten.erf)
+def aten_erf(input: MaxTensor) -> MaxTensor:
+    return F.erf(input)
 
 
 # exp(Tensor self) -> Tensor
@@ -2588,6 +2520,12 @@ def aten_sign(x: MaxTensor) -> MaxTensor:
 @map_to(aten.sin)
 def aten_sin(x: MaxTensor) -> MaxTensor:
     return F.sin(x)
+
+
+# tan(Tensor self) -> Tensor
+@map_to(aten.tan)
+def aten_tan(x: MaxTensor) -> MaxTensor:
+    return F.sin(x) / F.cos(x)
 
 
 # tanh(Tensor self) -> Tensor

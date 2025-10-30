@@ -1,6 +1,7 @@
 import time
 import traceback
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,8 @@ import torch
 from functorch.compile import make_boxed_func
 from max import engine, mlir
 from max.dtype import DType
-from max.graph import Graph, KernelLibrary
+from max.graph import DeviceRef, Graph, KernelLibrary
+from max.graph import ops as max_ops
 from max.torch.torch import max_device_ref
 from torch._dynamo.backends.common import aot_autograd
 
@@ -158,8 +160,30 @@ def fetch_attr(gm: torch.fx.GraphModule, target: str):
     return attr_itr
 
 
+class OutputBlueprintKind(Enum):
+    NONE = 1
+    TENSOR = 2
+    DIM = 3
+
+
 class _GraphFactory:
-    def __init__(self):
+    def __init__(
+        self,
+        replace_inputs: dict[str, torch.Tensor] = {},
+        force_device: DeviceRef | None = None,
+    ):
+        """Creates the MAX graph according to the input fx graph.
+
+        Create a new instance for each new graph to be created.
+        Args:
+            replace_inputs (dict): A mapping from placeholder op to an actual tensor.
+                With this information, we can remove graph inputs and use a constant instead.
+                This is mainly useful to "freeze" the parameters of the model, because pytorch
+                very often assumes that parameters are graph inputs. Max prefers constants. It's
+                also a nicer UX for inference.
+            force_device (DeviceRef | None): If provided, forces all graph inputs and constants
+                to be on this device.
+        """
         self.names_to_input_idx: dict[str, int] = {}
         self.shape_names_to_input_dim: dict[str, tuple[str, int]] = {}
         self.graph_inputs: list[max.graph.value.TensorType] = []
@@ -167,6 +191,8 @@ class _GraphFactory:
         self.tensor_book = TensorsBook()
         # Link the shape expressions (names) to the node names
         self.expression_to_node_name: dict[str, str] = {}
+        self.replace_inputs = replace_inputs
+        self.force_device = force_device
 
     def initialize_graph(self):
         if self.graph is not None:
@@ -185,8 +211,28 @@ class _GraphFactory:
             self.tensor_book[shape_name] = self.tensor_book.tensors[tensor_name].shape[
                 dim_idx
             ]
+        for input_name, tensor in self.replace_inputs.items():
+            self.tensor_book[input_name] = max_ops.constant(
+                tensor,
+                dtype=DType.from_torch(tensor.dtype),
+                device=self.get_max_device(tensor),
+            )
+
+    def get_max_device(self, tensor: torch.Tensor) -> DeviceRef:
+        if self.force_device is not None:
+            return self.force_device
+        return max_device_ref(tensor.device)
 
     def handle_placeholder(self, node: torch.fx.Node):
+        if node.name in self.replace_inputs:
+            # We short-circuit this input and use a constant instead.
+            # We still have to place it in the graph inputs list because
+            # at this point we don't have an active graph yet.
+            # We'll register all the constants when initializing the graph.
+            # TODO: add some validation in case the names in self.replace_inputs are not
+            # in the graph.
+            return
+
         if "example_value" in node.meta:
             example_value = node.meta["example_value"]
         elif "val" in node.meta:
@@ -211,7 +257,7 @@ class _GraphFactory:
                 max.graph.value.TensorType(
                     dtype=DType.from_torch(example_value.dtype),
                     shape=shape,
-                    device=max_device_ref(example_value.device),
+                    device=self.get_max_device(example_value),
                 )
             )
             self.names_to_input_idx[node.name] = len(self.graph_inputs) - 1
@@ -270,31 +316,52 @@ class _GraphFactory:
         attr_value = fetch_attr(self.graph, node.target)
         self.tensor_book[node.name] = attr_value
 
-    def handle_output(self, node: torch.fx.Node):
+    def handle_output(
+        self, node: torch.fx.Node
+    ) -> list[tuple[OutputBlueprintKind, int | None]]:
+        """Handles the output node and returns the output blueprint.
+
+        The blueprint indicates what the final output should look like, as
+        opposed to what the MAX graph will return.
+        The blueprint is the same size as the final output and
+        NONE means that the output is None,
+        TENSOR means that the output is a tensor (and the index in the MAX output list),
+        DIM means that the output is a dimension (int) of a tensor (and the index in the MAX output list).
+        Note that for DIM outputs, we'll need to convert the MAX tensor to an int at runtime,
+        because MAX assumes that if your ouput is a Dim(), then you want a max tensor
+        as output, not a simple python int.
+        """
         output_tensors = []
 
         # None outputs can be required. So we remember here if
         # we want an output tensor (and we reccord the tensor position)
         # or if we want None.
-        output_blueprint: list[int | None] = []
+        output_blueprint: list[tuple[OutputBlueprintKind, int | None]] = []
 
         for x in node.args[0]:
             converted = self.tensor_book.convert_to_max(x)
             if converted is None:
-                output_blueprint.append(None)
+                output_blueprint.append((OutputBlueprintKind.NONE, None))
+            elif isinstance(converted, max.graph.Dim):
+                # position of the output tensor
+                output_blueprint.append((OutputBlueprintKind.DIM, len(output_tensors)))
+                output_tensors.append(converted)
             else:
                 # position of the output tensor
-                output_blueprint.append(len(output_tensors))
+                output_blueprint.append(
+                    (OutputBlueprintKind.TENSOR, len(output_tensors))
+                )
                 output_tensors.append(converted)
-
         # Store the none indices for runtime handling
         self.graph.output(*output_tensors)
         self.graph.__exit__(None, None, None)
         return output_blueprint
 
-    def create_graph(self, gm: torch.fx.GraphModule) -> tuple[Graph, list[int | None]]:
+    def create_graph(
+        self, graph: torch.fx.Graph
+    ) -> tuple[Graph, list[tuple[OutputBlueprintKind, int | None]]]:
         output_blueprint = None
-        for node_idx, node in enumerate(gm.graph.nodes):
+        for node_idx, node in enumerate(graph.nodes):
             if node.op == "placeholder":
                 self.handle_placeholder(node)
                 continue
@@ -327,7 +394,7 @@ class BaseMaxCompiler:
             gather_stats_on_graph(gm)
             gm.graph.print_tabular()
 
-        graph, self.output_blueprint = _GraphFactory().create_graph(gm)
+        graph, self.output_blueprint = _GraphFactory().create_graph(gm.graph)
         if verbose_enabled():
             print(graph)
         if profiling_enabled():
@@ -344,7 +411,20 @@ class BaseMaxCompiler:
             )
             print(f"Compiling the Max graph in {compiling}")
 
-    def __call__(self, *args) -> list[torch.Tensor | None]:
+    def reconstruct_from_blueprint(
+        self, max_ouptputs: list[torch.Tensor]
+    ) -> list[torch.Tensor | int | float | None]:
+        result = []
+        for kind, index in self.output_blueprint:
+            if kind is OutputBlueprintKind.NONE:
+                result.append(None)
+            elif kind is OutputBlueprintKind.TENSOR:
+                result.append(max_ouptputs[index])
+            elif kind is OutputBlueprintKind.DIM:
+                result.append(max_ouptputs[index].item())
+        return result
+
+    def __call__(self, *args) -> list[torch.Tensor | int | float | None]:
         # Detach tensors to avoid gradient tracking issues with DLpack
         if profiling_enabled():
             start_inference_time = time.time_ns()
@@ -356,13 +436,8 @@ class BaseMaxCompiler:
 
         debug.debug_graph_if_required(self.gm, args)
 
-        # Reconstruct the original output structure with None values
-        result = []
-        for i in self.output_blueprint:
-            if i is None:
-                result.append(None)
-            else:
-                result.append(tensor_outputs[i])
+        result = self.reconstruct_from_blueprint(tensor_outputs)
+
         if profiling_enabled():
             end_inference_time = time.time_ns()
             inference_duration = dt.timedelta(
@@ -372,20 +447,29 @@ class BaseMaxCompiler:
         return result
 
 
+def boxed_func(*args, **kwargs):
+    return make_boxed_func(BaseMaxCompiler(*args, **kwargs).__call__)
+
+
 class max_backend:
     def __init__(self, gm: torch.fx.GraphModule, example_inputs: list):
-        def boxed_func(*args, **kwargs):
-            return make_boxed_func(BaseMaxCompiler(*args, **kwargs).__call__)
-
         self.func_to_execute = aot_autograd(
             fw_compiler=boxed_func, decompositions=DECOMPOSITION_TABLE
         )(gm, example_inputs)
 
-    def __call__(self, *args) -> list[torch.Tensor | None]:
+    def __call__(self, *args) -> list[torch.Tensor | int | float | None]:
         result = self.func_to_execute(*args)
         if isinstance(result, tuple):
             return list(result)
         return result
+
+
+def dummy_compiler(gm: torch.fx.GraphModule, example_inputs: list):
+    return make_boxed_func(gm.forward)
+
+
+# Can be used to check if it's the fault of the max backend or not.
+dummy_backend = aot_autograd(fw_compiler=dummy_compiler)
 
 
 # Taken from torch.py in max.
