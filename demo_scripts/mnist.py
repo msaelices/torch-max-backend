@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+
 from torch_max_backend import max_backend
 
 os.environ["TORCH_MAX_BACKEND_PROFILE"] = "0"
