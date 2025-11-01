@@ -164,7 +164,6 @@ class HuggingFaceTokenizer:
 # Tokenizer based on rustbpe + tiktoken combo
 import pickle
 
-import rustbpe
 import tiktoken
 
 
@@ -177,6 +176,8 @@ class RustBPETokenizer:
 
     @classmethod
     def train_from_iterator(cls, text_iterator, vocab_size):
+        import rustbpe  # added here to avoid hard dependency if not used
+
         # 1) train using rustbpe
         tokenizer = rustbpe.Tokenizer()
         # the special tokens are inserted later in __init__, we don't train them here
