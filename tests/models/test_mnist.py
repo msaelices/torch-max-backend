@@ -6,10 +6,14 @@ including forward/backward passes, compilation, training steps, and
 integration with the MAX backend.
 """
 
+from pathlib import Path
+
 import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 from torch_max_backend import max_backend
 from torch_max_backend.testing import check_functions_are_equivalent
@@ -36,6 +40,79 @@ class SimpleNet(nn.Module):
         # Output layer (no activation, will use CrossEntropyLoss)
         x = self.fc3(x)
         return x
+
+
+def train_epoch(model, device, train_loader, optimizer, criterion, epoch):
+    """Train for one epoch.
+
+    Args:
+        model: The neural network model
+        device: Device to run training on (cpu/cuda)
+        train_loader: DataLoader for training data
+        optimizer: Optimizer for updating weights
+        criterion: Loss function
+        epoch: Current epoch number
+
+    Returns:
+        Tuple of (average_loss, accuracy)
+    """
+    model.train()
+    total_loss = 0
+    correct = 0
+    total = 0
+
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+
+        # Forward pass
+        optimizer.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+
+        # Track metrics
+        total_loss += loss.item()
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
+        total += target.size(0)
+
+    avg_loss = total_loss / len(train_loader)
+    accuracy = 100.0 * correct / total
+    return avg_loss, accuracy
+
+
+def evaluate(model, device, test_loader, criterion):
+    """Evaluate the model on test data.
+
+    Args:
+        model: The neural network model
+        device: Device to run evaluation on (cpu/cuda)
+        test_loader: DataLoader for test data
+        criterion: Loss function
+
+    Returns:
+        Tuple of (average_loss, accuracy)
+    """
+    model.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += criterion(output, target).item()
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+            total += target.size(0)
+
+    avg_loss = test_loss / len(test_loader)
+    accuracy = 100.0 * correct / total
+    return avg_loss, accuracy
 
 
 class TestMNISTModelStructure:
@@ -526,3 +603,197 @@ class TestMNISTEdgeCases:
         # All parameters should be float32
         for param in model.parameters():
             assert param.dtype == torch.float32
+
+
+class TestMNISTRealData:
+    """Tests using real MNIST dataset."""
+
+    @pytest.fixture(scope="class")
+    def mnist_data_loaders(self):
+        """Fixture to load MNIST dataset for testing."""
+        data_dir = Path.home() / ".pytorch" / "datasets" / "mnist"
+
+        transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,)),  # MNIST mean and std
+            ]
+        )
+
+        # Load training dataset (use subset for faster testing)
+        train_dataset = datasets.MNIST(
+            data_dir, train=True, download=True, transform=transform
+        )
+
+        # Load test dataset
+        test_dataset = datasets.MNIST(data_dir, train=False, transform=transform)
+
+        # Use small batch size and subset for testing
+        train_loader = DataLoader(
+            train_dataset, batch_size=64, shuffle=True, num_workers=0
+        )
+        test_loader = DataLoader(
+            test_dataset, batch_size=1000, shuffle=False, num_workers=0
+        )
+
+        return train_loader, test_loader
+
+    def test_train_one_epoch_with_real_data(self, device: str, mnist_data_loaders):
+        """Test training for one epoch with real MNIST data."""
+        train_loader, test_loader = mnist_data_loaders
+
+        model = SimpleNet().to(device)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        criterion = nn.CrossEntropyLoss()
+
+        # Train for one epoch
+        train_loss, train_acc = train_epoch(
+            model, device, train_loader, optimizer, criterion, epoch=1
+        )
+
+        # Verify metrics are reasonable
+        assert train_loss > 0, "Training loss should be positive"
+        assert 0 <= train_acc <= 100, f"Training accuracy {train_acc} out of range"
+
+        # After one epoch, we should have some reasonable accuracy
+        assert train_acc > 10, f"Training accuracy too low: {train_acc:.2f}%"
+
+    def test_evaluate_with_real_data(self, device: str, mnist_data_loaders):
+        """Test evaluation on real MNIST data."""
+        train_loader, test_loader = mnist_data_loaders
+
+        model = SimpleNet().to(device)
+        criterion = nn.CrossEntropyLoss()
+
+        # Evaluate untrained model
+        test_loss, test_acc = evaluate(model, device, test_loader, criterion)
+
+        # Verify metrics are reasonable
+        assert test_loss > 0, "Test loss should be positive"
+        assert 0 <= test_acc <= 100, f"Test accuracy {test_acc} out of range"
+
+        # Untrained model should have ~10% accuracy (random guessing)
+        assert 5 <= test_acc <= 20, (
+            f"Untrained model accuracy {test_acc:.2f}% unexpected"
+        )
+
+    def test_training_improves_accuracy(self, device: str, mnist_data_loaders):
+        """Test that training improves accuracy on real data."""
+        train_loader, test_loader = mnist_data_loaders
+
+        model = SimpleNet().to(device)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        criterion = nn.CrossEntropyLoss()
+
+        # Initial evaluation
+        initial_loss, initial_acc = evaluate(model, device, test_loader, criterion)
+
+        # Train for one epoch
+        train_loss, train_acc = train_epoch(
+            model, device, train_loader, optimizer, criterion, epoch=1
+        )
+
+        # Evaluate after training
+        final_loss, final_acc = evaluate(model, device, test_loader, criterion)
+
+        # Accuracy should improve after training
+        assert final_acc > initial_acc, (
+            f"Accuracy did not improve: {initial_acc:.2f}% -> {final_acc:.2f}%"
+        )
+
+        # Loss should decrease
+        assert final_loss < initial_loss, (
+            f"Loss did not decrease: {initial_loss:.4f} -> {final_loss:.4f}"
+        )
+
+    def test_compiled_model_train_epoch(self, device: str, mnist_data_loaders):
+        """Test training with compiled model on real data."""
+        train_loader, test_loader = mnist_data_loaders
+
+        # Regular model
+        model_eager = SimpleNet().to(device)
+        optimizer_eager = torch.optim.SGD(
+            model_eager.parameters(), lr=0.01, momentum=0.9
+        )
+        criterion = nn.CrossEntropyLoss()
+
+        # Compiled model
+        model_compiled = SimpleNet().to(device)
+        model_compiled = torch.compile(model_compiled, backend=max_backend)
+        optimizer_compiled = torch.optim.SGD(
+            model_compiled.parameters(), lr=0.01, momentum=0.9
+        )
+
+        # Train both models for one epoch on a small subset
+        # Use only first 5 batches for speed
+        train_subset = []
+        for i, batch in enumerate(train_loader):
+            if i >= 5:
+                break
+            train_subset.append(batch)
+
+        # Train eager model
+        model_eager.train()
+        for data, target in train_subset:
+            data, target = data.to(device), target.to(device)
+            optimizer_eager.zero_grad()
+            output = model_eager(data)
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer_eager.step()
+
+        # Train compiled model
+        model_compiled.train()
+        for data, target in train_subset:
+            data, target = data.to(device), target.to(device)
+            optimizer_compiled.zero_grad()
+            output = model_compiled(data)
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer_compiled.step()
+
+        # Both models should produce valid outputs
+        test_data, _ = next(iter(test_loader))
+        test_data = test_data.to(device)
+
+        model_eager.eval()
+        model_compiled.eval()
+        with torch.no_grad():
+            output_eager = model_eager(test_data)
+            output_compiled = model_compiled(test_data)
+
+        assert output_eager.shape == output_compiled.shape
+        assert not torch.isnan(output_eager).any()
+        assert not torch.isnan(output_compiled).any()
+
+    def test_real_mnist_batch_shape(self, mnist_data_loaders):
+        """Test that real MNIST data has correct shape."""
+        train_loader, test_loader = mnist_data_loaders
+
+        # Check train data
+        train_data, train_target = next(iter(train_loader))
+        assert train_data.shape[1:] == (1, 28, 28), (
+            f"Expected shape (*, 1, 28, 28), got {train_data.shape}"
+        )
+        assert train_target.shape[0] == train_data.shape[0]
+
+        # Check test data
+        test_data, test_target = next(iter(test_loader))
+        assert test_data.shape[1:] == (1, 28, 28), (
+            f"Expected shape (*, 1, 28, 28), got {test_data.shape}"
+        )
+        assert test_target.shape[0] == test_data.shape[0]
+
+    def test_real_mnist_data_normalized(self, mnist_data_loaders):
+        """Test that MNIST data is properly normalized."""
+        train_loader, test_loader = mnist_data_loaders
+
+        train_data, _ = next(iter(train_loader))
+
+        # With normalization (mean=0.1307, std=0.3081), values should be roughly [-3, 3]
+        assert train_data.min() > -4, f"Data min {train_data.min()} too low"
+        assert train_data.max() < 4, f"Data max {train_data.max()} too high"
+
+        # Mean should be close to 0 (after normalization)
+        mean = train_data.mean()
+        assert -1 < mean < 1, f"Data mean {mean} unexpected for normalized data"
