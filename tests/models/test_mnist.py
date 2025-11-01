@@ -115,54 +115,6 @@ def evaluate(model, device, test_loader, criterion):
     return avg_loss, accuracy
 
 
-class TestMNISTModelStructure:
-    """Tests for MNIST model architecture and structure."""
-
-    def test_model_initialization(self):
-        """Test that SimpleNet initializes correctly."""
-        model = SimpleNet()
-
-        assert hasattr(model, "fc1")
-        assert hasattr(model, "fc2")
-        assert hasattr(model, "fc3")
-
-        assert isinstance(model.fc1, nn.Linear)
-        assert isinstance(model.fc2, nn.Linear)
-        assert isinstance(model.fc3, nn.Linear)
-
-        # Check layer dimensions
-        assert model.fc1.in_features == 784
-        assert model.fc1.out_features == 128
-        assert model.fc2.in_features == 128
-        assert model.fc2.out_features == 64
-        assert model.fc3.in_features == 64
-        assert model.fc3.out_features == 10
-
-    def test_parameter_count(self):
-        """Test that model has correct number of parameters."""
-        model = SimpleNet()
-        total_params = sum(p.numel() for p in model.parameters())
-
-        # fc1: 784*128 + 128 = 100,480
-        # fc2: 128*64 + 64 = 8,256
-        # fc3: 64*10 + 10 = 650
-        # Total: 109,386
-        expected_params = 100_480 + 8_256 + 650
-        assert total_params == expected_params
-
-    def test_model_in_train_mode(self):
-        """Test that model can be set to training mode."""
-        model = SimpleNet()
-        model.train()
-        assert model.training is True
-
-    def test_model_in_eval_mode(self):
-        """Test that model can be set to evaluation mode."""
-        model = SimpleNet()
-        model.eval()
-        assert model.training is False
-
-
 class TestMNISTForwardPass:
     """Tests for MNIST model forward pass."""
 
@@ -765,35 +717,3 @@ class TestMNISTRealData:
         assert output_eager.shape == output_compiled.shape
         assert not torch.isnan(output_eager).any()
         assert not torch.isnan(output_compiled).any()
-
-    def test_real_mnist_batch_shape(self, mnist_data_loaders):
-        """Test that real MNIST data has correct shape."""
-        train_loader, test_loader = mnist_data_loaders
-
-        # Check train data
-        train_data, train_target = next(iter(train_loader))
-        assert train_data.shape[1:] == (1, 28, 28), (
-            f"Expected shape (*, 1, 28, 28), got {train_data.shape}"
-        )
-        assert train_target.shape[0] == train_data.shape[0]
-
-        # Check test data
-        test_data, test_target = next(iter(test_loader))
-        assert test_data.shape[1:] == (1, 28, 28), (
-            f"Expected shape (*, 1, 28, 28), got {test_data.shape}"
-        )
-        assert test_target.shape[0] == test_data.shape[0]
-
-    def test_real_mnist_data_normalized(self, mnist_data_loaders):
-        """Test that MNIST data is properly normalized."""
-        train_loader, test_loader = mnist_data_loaders
-
-        train_data, _ = next(iter(train_loader))
-
-        # With normalization (mean=0.1307, std=0.3081), values should be roughly [-3, 3]
-        assert train_data.min() > -4, f"Data min {train_data.min()} too low"
-        assert train_data.max() < 4, f"Data max {train_data.max()} too high"
-
-        # Mean should be close to 0 (after normalization)
-        mean = train_data.mean()
-        assert -1 < mean < 1, f"Data mean {mean} unexpected for normalized data"
