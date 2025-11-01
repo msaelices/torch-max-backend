@@ -18,6 +18,7 @@ from contextlib import contextmanager
 
 import torch
 import torch.nn.functional as F
+
 from nanochat.checkpoint_manager import load_model
 from nanochat.common import compute_init
 

@@ -9,6 +9,7 @@ import os
 import re
 
 import torch
+
 from nanochat.common import get_base_dir, setup_default_logging
 from nanochat.gpt import GPT, GPTConfig
 from nanochat.tokenizer import get_tokenizer
