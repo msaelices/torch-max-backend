@@ -7,6 +7,8 @@ import torch
 import torch.distributed as dist
 from torch import Tensor
 
+from torch_max_backend import max_backend
+
 
 class DistAdamW(torch.optim.Optimizer):
     """
@@ -25,7 +27,7 @@ class DistAdamW(torch.optim.Optimizer):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
         super().__init__(param_groups, defaults)
 
-    @torch.compile
+    @torch.compile(backend=max_backend)
     @torch.no_grad()
     def step(self):
         rank = dist.get_rank()

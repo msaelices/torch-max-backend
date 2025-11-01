@@ -6,12 +6,16 @@ python -m scripts.chat_cli -i mid
 """
 
 import argparse
+import os
 from contextlib import nullcontext
 
 import torch
 from nanochat.checkpoint_manager import load_model
 from nanochat.common import autodetect_device_type, compute_init
 from nanochat.engine import Engine
+
+os.environ["TORCH_MAX_BACKEND_PROFILE"] = "0"
+os.environ["TORCH_MAX_BACKEND_VERBOSE"] = "0"
 
 parser = argparse.ArgumentParser(description="Chat with the model")
 parser.add_argument(

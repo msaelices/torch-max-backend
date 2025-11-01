@@ -7,8 +7,10 @@ import torch
 import torch.distributed as dist
 from torch import Tensor
 
+from torch_max_backend import max_backend
 
-@torch.compile
+
+@torch.compile(backend=max_backend)
 def zeropower_via_newtonschulz5(G: Tensor, steps: int) -> Tensor:
     """
     Newton-Schulz iteration to compute the zeroth power / orthogonalization of G. We opt to use a
