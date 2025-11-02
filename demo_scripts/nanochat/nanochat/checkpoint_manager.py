@@ -13,7 +13,6 @@ import torch
 from nanochat.common import get_base_dir, setup_default_logging
 from nanochat.gpt import GPT, GPTConfig
 from nanochat.tokenizer import get_tokenizer
-from torch_max_backend import max_backend
 
 # Set up logging
 setup_default_logging()
@@ -78,18 +77,13 @@ def build_model(checkpoint_dir, step, device, phase):
             k: v.float() if v.dtype == torch.bfloat16 else v
             for k, v in model_data.items()
         }
-    # Hack: fix missing keys error when compiling with max_backend
-    model_data = {f"_orig_mod.{k}": v for k, v in model_data.items()}
-    # This hack is no longer needed with max_backend
-    # model_data = {k.lstrip("_orig_mod."): v for k, v in model_data.items()}
+    # Hack: fix torch compile issue, which prepends all keys with _orig_mod.
+    model_data = {k.lstrip("_orig_mod."): v for k, v in model_data.items()}
     model_config_kwargs = meta_data["model_config"]
     log0(f"Building model with config: {model_config_kwargs}")
     model_config = GPTConfig(**model_config_kwargs)
     with torch.device("meta"):
         model = GPT(model_config)
-
-    # Compile the model with torch.compile and max_backend
-    model = torch.compile(model, backend=max_backend, fullgraph=True)
 
     # Load the model state
     model.to_empty(device=device)

@@ -21,6 +21,7 @@ import torch.nn.functional as F
 
 from nanochat.checkpoint_manager import load_model
 from nanochat.common import compute_init
+from torch_max_backend import max_backend
 
 
 # -----------------------------------------------------------------------------
@@ -260,7 +261,12 @@ class Engine:
         }
         kv_cache_prefill = KVCache(batch_size=1, seq_len=len(tokens), **kv_model_kwargs)
         ids = torch.tensor([tokens], dtype=torch.long, device=device)
-        logits = self.model.forward(ids, kv_cache=kv_cache_prefill)
+
+        # Compile the forward function with max_backend
+        compiled_forward = torch.compile(
+            self.model.forward, fullgraph=True, backend=max_backend
+        )
+        logits = compiled_forward(ids, kv_cache=kv_cache_prefill)
         logits = logits[:, -1, :]
         next_ids = sample_next_token(logits, rng, temperature, top_k)  # (B, 1)
         sampled_tokens = next_ids[:, 0].tolist()
