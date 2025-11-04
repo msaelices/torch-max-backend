@@ -473,11 +473,11 @@ def test_aten_as_strided_sliding_window(conf: Conf):
 def test_aten_as_strided_various_offsets(conf: Conf, storage_offset: int):
     """Test aten.as_strided with various storage offsets"""
 
-    def fn(x, offset):
-        return aten.as_strided(x, size=[5], stride=[1], storage_offset=offset)
+    def fn(x):
+        return aten.as_strided(x, size=[5], stride=[1], storage_offset=storage_offset)
 
     x = torch.arange(10, dtype=torch.float32)
-    check_outputs(fn, conf, [x, storage_offset])
+    check_outputs(fn, conf, [x])
 
 
 def test_aten_as_strided_size_one_dimension(conf: Conf):
