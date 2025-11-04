@@ -1054,7 +1054,7 @@ def aten_argmin(
 # as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)
 @map_to(aten.as_strided)
 def aten_as_strided(
-    self: MaxTensor,
+    input: MaxTensor,
     size: list[int],
     stride: list[int],
     storage_offset: int | None = None,
@@ -1081,16 +1081,16 @@ def aten_as_strided(
 
     if output_numel == 0:
         # Return empty tensor with correct shape and dtype
-        return F.reshape(self, size)
+        return F.reshape(input, size)
 
     # Flatten input to access as 1D storage
-    flat_input = F.reshape(self, [-1])
+    flat_input = F.reshape(input, [-1])
 
     # Build coordinate grids for each dimension
     # We need to compute indices[i,j,k,...] = storage_offset + i*stride[0] + j*stride[1] + k*stride[2] + ...
 
     # Get device from input tensor
-    device = self.device
+    device = input.device
 
     # We'll build the indices step by step
     # Start with storage offset for all output positions
