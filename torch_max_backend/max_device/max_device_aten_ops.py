@@ -362,6 +362,10 @@ register_aten_op("aten::pow.Tensor_Scalar")(
     wrap_for_max_device(aten_functions.aten_pow)
 )
 
+register_aten_op("aten::pow.Tensor_Tensor")(
+    wrap_for_max_device(aten_functions.aten_pow)
+)
+
 register_aten_op("aten::relu")(wrap_for_max_device(aten_functions.aten_relu))
 
 
