@@ -22,3 +22,8 @@ Qwen3-0.6B/
 gemma-3-270m-it/
 .coverage
 .vscode/
+
+# Qwen Code files
+# Agent documentation files (use AGENTS.md instead)
+CLAUDE.md
+QWEN.md
