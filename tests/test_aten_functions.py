@@ -1309,6 +1309,114 @@ def test_aten_ceil_scalar_tensor(conf: Conf):
     check_outputs(fn, conf, [x])
 
 
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+@pytest.mark.parametrize("approximate", ["none", "tanh"])
+def test_aten_gelu_backward_basic(conf: Conf, dtype: torch.dtype, approximate: str):
+    """Test aten.gelu_backward with different approximations"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate=approximate)
+
+    # Test with varied input values covering negative, zero, and positive ranges
+    x = torch.tensor([-3.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 3.0], dtype=dtype)
+    grad_output = torch.ones_like(x)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_gelu_backward_2d_tensor(conf: Conf, dtype: torch.dtype):
+    """Test aten.gelu_backward with 2D tensor"""
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(3, 4, dtype=dtype)
+    grad_output = torch.randn(3, 4, dtype=dtype)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_gelu_backward_3d_tensor(conf: Conf, dtype: torch.dtype):
+    """Test aten.gelu_backward with 3D tensor"""
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(2, 3, 4, dtype=dtype)
+    grad_output = torch.randn(2, 3, 4, dtype=dtype)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_tanh_approx(conf: Conf):
+    """Test aten.gelu_backward with tanh approximation"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="tanh")
+
+    x = torch.randn(10, dtype=torch.float32)
+    grad_output = torch.ones_like(x)
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_edge_values(conf: Conf):
+    """Test aten.gelu_backward with edge case values"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    # Test with large values, small values, and exact zeros
+    x = torch.tensor([-10.0, -5.0, -1e-6, 0.0, 1e-6, 5.0, 10.0], dtype=torch.float32)
+    grad_output = torch.ones_like(x)
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_different_grad_outputs(conf: Conf):
+    """Test aten.gelu_backward with non-uniform grad_output"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(8, dtype=torch.float32)
+    # Test with varied gradient values
+    grad_output = torch.tensor(
+        [0.1, 0.5, 1.0, 2.0, -0.5, -1.0, 0.0, 3.0], dtype=torch.float32
+    )
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_scalar_tensor(conf: Conf):
+    """Test aten.gelu_backward with scalar tensor"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.tensor(1.5, dtype=torch.float32)
+    grad_output = torch.tensor(1.0, dtype=torch.float32)
+    check_outputs(fn, conf, [grad_output, x])
+
+
 TRIGON_FUNCTIONS = [aten.asinh, aten.cosh, aten.sinh, aten.tan, aten.tanh]
 
 

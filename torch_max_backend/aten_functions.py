@@ -1697,6 +1697,41 @@ def aten_gelu(
     return F.gelu(input, approximate=approximate)
 
 
+# gelu_backward(Tensor grad_output, Tensor self, *, str approximate='none') -> Tensor
+@map_to(aten.gelu_backward)
+def aten_gelu_backward(
+    grad_output: MaxTensor,
+    input: MaxTensor,
+    *,
+    approximate: Literal["tanh", "none"] = "none",
+) -> MaxTensor:
+    """
+    Computes the gradient of the GELU activation function.
+
+    Based on PyTorch C++ implementation:
+    - CUDA: pytorch/aten/src/ATen/native/cuda/ActivationGeluKernel.cu (lines 44-86)
+    - CPU: pytorch/aten/src/ATen/native/cpu/Activation.cpp (lines 345-521)
+
+    Args:
+        grad_output: Gradient flowing back from the next layer (∂L/∂y)
+        input: Original input to the forward GELU operation (x)
+        approximate: "none" for exact erf-based GELU, "tanh" for tanh approximation
+
+    Returns:
+        Gradient with respect to input (∂L/∂x)
+    """
+    if approximate not in ("none", "tanh"):
+        raise ValueError(
+            f"Invalid approximate argument '{approximate}'. "
+            f"Supported values are:\n"
+            f"  - 'none': Exact GELU using error function (erf)\n"
+            f"  - 'tanh': Tanh approximation of GELU (faster, slightly less accurate)\n"
+            f"See PyTorch documentation for details on approximation trade-offs."
+        )
+
+    return custom_mojo_ops.gelu_backward(grad_output, input, approximate=approximate)
+
+
 # grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor
 
 
