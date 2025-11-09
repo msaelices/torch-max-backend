@@ -1031,7 +1031,7 @@ def test_foreach_pow_scalar(conf: Conf, dtype: torch.dtype):
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-def test_foreach_pow_list(device: str, dtype: torch.dtype):
+def test_foreach_pow_list(conf: Conf, dtype: torch.dtype):
     """Test _foreach_pow.List - raises corresponding tensors to powers"""
 
     def fn(x1, y1, z1, x2, y2, z2):
@@ -1046,7 +1046,7 @@ def test_foreach_pow_list(device: str, dtype: torch.dtype):
     y2 = torch.randn(2, 5, dtype=dtype)
     z2 = torch.randn(4, dtype=dtype)
 
-    check_functions_are_equivalent(fn, device, [x1, y1, z1, x2, y2, z2])
+    check_outputs(fn, conf, [x1, y1, z1, x2, y2, z2])
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
@@ -1411,6 +1411,114 @@ def test_aten_ceil_scalar_tensor(conf: Conf):
     check_outputs(fn, conf, [x])
 
 
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+@pytest.mark.parametrize("approximate", ["none", "tanh"])
+def test_aten_gelu_backward_basic(conf: Conf, dtype: torch.dtype, approximate: str):
+    """Test aten.gelu_backward with different approximations"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate=approximate)
+
+    # Test with varied input values covering negative, zero, and positive ranges
+    x = torch.tensor([-3.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 3.0], dtype=dtype)
+    grad_output = torch.ones_like(x)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_gelu_backward_2d_tensor(conf: Conf, dtype: torch.dtype):
+    """Test aten.gelu_backward with 2D tensor"""
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(3, 4, dtype=dtype)
+    grad_output = torch.randn(3, 4, dtype=dtype)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_aten_gelu_backward_3d_tensor(conf: Conf, dtype: torch.dtype):
+    """Test aten.gelu_backward with 3D tensor"""
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(2, 3, 4, dtype=dtype)
+    grad_output = torch.randn(2, 3, 4, dtype=dtype)
+
+    # bfloat16 requires higher tolerance due to lower precision
+    if dtype == torch.bfloat16:
+        check_outputs(fn, conf, [grad_output, x], atol=1e-2, rtol=5e-2)
+    else:
+        check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_tanh_approx(conf: Conf):
+    """Test aten.gelu_backward with tanh approximation"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="tanh")
+
+    x = torch.randn(10, dtype=torch.float32)
+    grad_output = torch.ones_like(x)
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_edge_values(conf: Conf):
+    """Test aten.gelu_backward with edge case values"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    # Test with large values, small values, and exact zeros
+    x = torch.tensor([-10.0, -5.0, -1e-6, 0.0, 1e-6, 5.0, 10.0], dtype=torch.float32)
+    grad_output = torch.ones_like(x)
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_different_grad_outputs(conf: Conf):
+    """Test aten.gelu_backward with non-uniform grad_output"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.randn(8, dtype=torch.float32)
+    # Test with varied gradient values
+    grad_output = torch.tensor(
+        [0.1, 0.5, 1.0, 2.0, -0.5, -1.0, 0.0, 3.0], dtype=torch.float32
+    )
+    check_outputs(fn, conf, [grad_output, x])
+
+
+def test_aten_gelu_backward_scalar_tensor(conf: Conf):
+    """Test aten.gelu_backward with scalar tensor"""
+
+    def fn(grad_output, x):
+        return aten.gelu_backward(grad_output, x, approximate="none")
+
+    x = torch.tensor(1.5, dtype=torch.float32)
+    grad_output = torch.tensor(1.0, dtype=torch.float32)
+    check_outputs(fn, conf, [grad_output, x])
+
+
 TRIGON_FUNCTIONS = [aten.asinh, aten.cosh, aten.sinh, aten.tan, aten.tanh]
 
 
@@ -1535,17 +1643,17 @@ def test_aten_select_scatter_negative_dim(conf: Conf):
     check_outputs(fn, conf, [self, src])
 
 
-def test_aten_select_scatter_negative_index(device: str):
+def test_aten_select_scatter_negative_index(conf: Conf):
     """Test aten.select_scatter with negative index"""
 
     def fn(self, src):
         return aten.select_scatter(self, src, dim=0, index=-1)
 
     # Negative index (index=-1 is last index)
-    self = torch.zeros(3, 4, dtype=torch.float32, device=device)
-    src = torch.ones(4, dtype=torch.float32, device=device) * 3
+    self = torch.zeros(3, 4, dtype=torch.float32)
+    src = torch.ones(4, dtype=torch.float32) * 3
 
-    check_functions_are_equivalent(fn, device, [self, src])
+    check_outputs(fn, conf, [self, src])
 
 
 def test_aten_select_scatter_scalar_src(conf: Conf):
@@ -1629,6 +1737,152 @@ def test_aten_repeat_interleave_large_repeats(device: str):
 
     x = torch.randn(2, 3, device=device)
     check_functions_are_equivalent(fn, device, [x])
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64, torch.bfloat16])
+def test_aten_pow_tensor_tensor_basic(conf: Conf, dtype: torch.dtype):
+    """Test pow.Tensor_Tensor basic functionality with floating point numbers"""
+    # Skip float16 on CPU as MAX doesn't support f16 on CPU
+    if conf.device == "cpu" and dtype == torch.float16:
+        pytest.skip("float16 not supported on CPU in MAX")
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test with various base and exponent values
+    base = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=dtype)
+    exponent = torch.tensor([2.0, 3.0, 0.5, -1.0, 0.0], dtype=dtype)
+    check_outputs(fn, conf, [base, exponent])
+
+
+@pytest.mark.parametrize("dtype", [torch.int32, torch.int64])
+def test_aten_pow_tensor_tensor_integer(conf: Conf, dtype: torch.dtype):
+    """Test pow.Tensor_Tensor with integer types and positive exponents"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test with integer values and positive exponents
+    base = torch.tensor([1, 2, 3, 4, 5], dtype=dtype)
+    exponent = torch.tensor([2, 3, 1, 0, 2], dtype=dtype)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_broadcasting_basic(conf: Conf):
+    """Test pow.Tensor_Tensor with broadcasting"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test broadcasting: (3, 1) with (3, 4)
+    base = torch.tensor([[2.0], [3.0], [4.0]], dtype=torch.float32)
+    exponent = torch.tensor([[1.0, 2.0, 3.0, 0.5]], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_broadcasting_scalar(conf: Conf):
+    """Test pow.Tensor_Tensor with scalar-like broadcasting"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test broadcasting: (4,) with (1,)
+    base = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+    exponent = torch.tensor([2.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_2d_tensor(conf: Conf):
+    """Test pow.Tensor_Tensor with 2D tensors"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    base = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
+    exponent = torch.tensor([[2.0, 3.0, 1.0], [0.5, 2.0, -1.0]], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_3d_tensor(conf: Conf):
+    """Test pow.Tensor_Tensor with 3D tensors"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    base = torch.randn(2, 3, 4, dtype=torch.float32).abs() + 1.0  # Ensure positive
+    exponent = torch.randn(2, 3, 4, dtype=torch.float32) * 2.0
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_special_exponents(conf: Conf):
+    """Test pow.Tensor_Tensor with special exponent values (0, 1, 2, -1)"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test special exponents
+    base = torch.tensor([2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
+    exponent = torch.tensor([0.0, 1.0, 2.0, -1.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_special_bases(conf: Conf):
+    """Test pow.Tensor_Tensor with special base values (0, 1, -1)"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test special bases (note: 0^0 should be 1 in PyTorch)
+    base = torch.tensor([0.0, 1.0, 1.0, -1.0, -1.0], dtype=torch.float32)
+    exponent = torch.tensor([0.0, 5.0, -5.0, 2.0, 3.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_fractional_exponents(conf: Conf):
+    """Test pow.Tensor_Tensor with fractional exponents (roots)"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test fractional exponents (roots) - use positive bases
+    base = torch.tensor([1.0, 4.0, 9.0, 16.0, 25.0], dtype=torch.float32)
+    exponent = torch.tensor([0.5, 0.5, 0.5, 0.25, 0.333], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_large_values(conf: Conf):
+    """Test pow.Tensor_Tensor with larger values"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Test with larger bases and smaller exponents to avoid overflow
+    base = torch.tensor([10.0, 5.0, 3.0, 2.0], dtype=torch.float32)
+    exponent = torch.tensor([2.0, 3.0, 4.0, 10.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_negative_base_integer_exponent(conf: Conf):
+    """Test pow.Tensor_Tensor with negative base and integer exponents"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    # Negative bases with integer exponents
+    base = torch.tensor([-2.0, -3.0, -2.0, -3.0], dtype=torch.float32)
+    exponent = torch.tensor([2.0, 2.0, 3.0, 3.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
+
+
+def test_aten_pow_tensor_tensor_single_element(conf: Conf):
+    """Test pow.Tensor_Tensor with single element tensors"""
+
+    def fn(base, exponent):
+        return aten.pow.Tensor_Tensor(base, exponent)
+
+    base = torch.tensor([2.0], dtype=torch.float32)
+    exponent = torch.tensor([3.0], dtype=torch.float32)
+    check_outputs(fn, conf, [base, exponent])
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
@@ -2470,29 +2724,29 @@ def test_aten_min_no_dim(conf: Conf):
 
 @pytest.mark.parametrize("dim", [0, 1, 2])
 @pytest.mark.parametrize("keepdim", [True, False])
-def test_aten_min_with_dim(device: str, dim: int, keepdim: bool):
+def test_aten_min_with_dim(conf: Conf, dim: int, keepdim: bool):
     """Test aten_min with dimension (returns values and indices tuple)"""
 
     def fn(x):
         return aten.min(x, dim=dim, keepdim=keepdim)
 
-    x = torch.randn(3, 4, 5, device=device)
-    check_functions_are_equivalent(fn, device, [x])
+    x = torch.randn(3, 4, 5)
+    check_outputs(fn, conf, [x])
 
 
 @pytest.mark.parametrize("dtype", [torch.int32, torch.int64, torch.float32])
-def test_aten_min_different_dtypes(device: str, dtype: torch.dtype):
+def test_aten_min_different_dtypes(conf: Conf, dtype: torch.dtype):
     """Test aten_min with different data types"""
 
     def fn(x):
         return aten.min(x, dim=1, keepdim=False)
 
     if dtype.is_floating_point:
-        x = torch.randn(3, 4, dtype=dtype, device=device)
+        x = torch.randn(3, 4, dtype=dtype)
     else:
-        x = torch.randint(-10, 10, (3, 4), dtype=dtype, device=device)
+        x = torch.randint(-10, 10, (3, 4), dtype=dtype)
 
-    check_functions_are_equivalent(fn, device, [x])
+    check_outputs(fn, conf, [x])
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
