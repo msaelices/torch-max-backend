@@ -1815,16 +1815,22 @@ def test_aten_pow_scalar_out_special_cases(conf: Conf):
         pytest.skip("This test requires max_device")
 
     # Test base = 1.0 (should fill with 1.0)
+    exponent = torch.tensor([0.5, 1.0, 2.0, 3.0], device="max_device")
     out = torch.empty(4, device="max_device")
+    result = torch.pow(1.0, exponent, out=out)
 
     expected = torch.ones(4)
     torch.testing.assert_close(out.cpu(), expected)
+    assert result is out
 
     # Test base = 0.0 (should fill with 0.0 for positive exponents)
+    exponent_pos = torch.tensor([1.0, 2.0, 3.0], device="max_device")
     out = torch.empty(3, device="max_device")
+    result = torch.pow(0.0, exponent_pos, out=out)
 
     expected = torch.zeros(3)
     torch.testing.assert_close(out.cpu(), expected)
+    assert result is out
 
 
 def test_aten_pow_scalar_out_graph_mode(conf: Conf):
