@@ -1783,6 +1783,85 @@ def test_aten_pow_tensor_tensor_single_element(conf: Conf):
     check_outputs(fn, conf, [base, exponent])
 
 
+@pytest.mark.parametrize("base", [0.0, 1.0, 2.0, 2.5, 10.0])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_aten_pow_scalar_out_eager(conf: Conf, base: float, dtype: torch.dtype):
+    """Test pow.Scalar_out in eager mode with max_device"""
+    if not conf.device.startswith("max_device"):
+        pytest.skip("This test requires max_device")
+
+    # Create tensors on max_device
+    exponent = torch.tensor([2.0, 3.0, 4.0], dtype=dtype, device="max_device")
+    out = torch.empty(3, dtype=dtype, device="max_device")
+
+    # Test torch.pow with scalar base and out parameter
+    result = torch.pow(base, exponent, out=out)
+
+    # Verify result is the out tensor
+    assert result is out
+
+    # Verify values are correct (move to CPU for comparison)
+    result_cpu = out.cpu()
+    expected = torch.pow(
+        torch.tensor(base, dtype=dtype), torch.tensor([2.0, 3.0, 4.0], dtype=dtype)
+    )
+
+    torch.testing.assert_close(result_cpu, expected)
+
+
+def test_aten_pow_scalar_out_special_cases(conf: Conf):
+    """Test special case optimizations for pow.Scalar_out"""
+    if not conf.device.startswith("max_device"):
+        pytest.skip("This test requires max_device")
+
+    # Test base = 1.0 (should fill with 1.0)
+    out = torch.empty(4, device="max_device")
+
+    expected = torch.ones(4)
+    torch.testing.assert_close(out.cpu(), expected)
+
+    # Test base = 0.0 (should fill with 0.0 for positive exponents)
+    out = torch.empty(3, device="max_device")
+
+    expected = torch.zeros(3)
+    torch.testing.assert_close(out.cpu(), expected)
+
+
+def test_aten_pow_scalar_out_graph_mode(conf: Conf):
+    """Test pow.Scalar_out in graph compilation mode"""
+
+    def fn(exponent):
+        return torch.pow(2.0, exponent)
+
+    exponent = torch.tensor([2.0, 3.0, 4.0])
+    check_outputs(fn, conf, [exponent])
+
+
+def test_aten_pow_scalar_out_broadcasting(conf: Conf):
+    """Test pow.Scalar_out with broadcasting"""
+    if not conf.device.startswith("max_device"):
+        pytest.skip("This test requires max_device")
+
+    # Test with different shapes
+    shapes = [(5,), (3, 4), (2, 3, 4)]
+    base = 2.0
+
+    for shape in shapes:
+        # Create on CPU first, then move to max_device
+        exponent_cpu = torch.randn(shape)
+        exponent = exponent_cpu.to(device="max_device")
+        out = torch.empty(shape, device="max_device")
+
+        result = torch.pow(base, exponent, out=out)
+
+        # Verify result is the out tensor
+        assert result is out
+
+        # Verify values
+        expected = torch.pow(torch.tensor(base), exponent_cpu)
+        torch.testing.assert_close(out.cpu(), expected)
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_aten_scatter_src_basic_2d(conf: Conf, dtype: torch.dtype):
     """Test aten.scatter.src basic functionality with 2D tensors"""
